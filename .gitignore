@@ -35,3 +35,4 @@ config.yaml
 
 # Finder (MacOS) folder config
 .DS_Store
+references/
