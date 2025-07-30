@@ -27,3 +27,5 @@ rooms:
     notify_room_enter: false
     # Optional: Only notify when VIP users enter (default: false)
     notify_watched_users_only: false
+    # Optional: Specific bridge name to monitor this room (if not specified, all bridges will monitor)
+    bridge: primary

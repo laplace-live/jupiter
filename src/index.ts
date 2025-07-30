@@ -65,6 +65,12 @@ const handleEvent = async (event: LaplaceEvent, bridge: EventBridgeConfig) => {
     return
   }
 
+  // Check if this room is configured for a specific bridge
+  if (roomCfg.bridge && roomCfg.bridge !== bridgeName) {
+    console.log(`[${bridgeName}] Room ${roomId} is configured for bridge '${roomCfg.bridge}', skipping`)
+    return
+  }
+
   // Store only message events in room-specific EventStore (for context feature)
   if (event.type === 'message') {
     const eventStore = eventStores.get(roomId)
@@ -326,13 +332,14 @@ async function start() {
 
     await Promise.allSettled(promises)
 
-    console.log(
-      'Bot is running. Monitoring rooms:',
-      Array.from(roomMap.values())
-        .map(r => r.slug)
-        .join(', ')
-    )
     console.log('Connected event bridges:', clients.map(bridge => bridge.name).join(', '))
+
+    // Show room monitoring configuration
+    console.log('Room monitoring config:')
+    Array.from(roomMap.values()).forEach(room => {
+      const bridgeInfo = room.bridge ? `bridge '${room.bridge}'` : 'all bridges'
+      console.log(`  - ${room.slug} (${room.room_id}): ${bridgeInfo}`)
+    })
   } catch (error) {
     console.error('Failed to start services:', error)
     process.exit(1)

@@ -75,6 +75,13 @@ rooms:
       - 2763
     telegram_announce_ch: -1001704730870
     telegram_watchers_ch: -15123135
+
+  # Example of bridge-specific room configuration
+  - room_id: 12345678
+    slug: 测试房间
+    telegram_announce_ch: -1001704730870
+    telegram_watchers_ch: -15123135
+    bridge: primary # Only monitor this room on 'primary' bridge
 ```
 
 ### Configuration Fields
@@ -87,11 +94,12 @@ rooms:
 
 #### Room Settings
 
-- `room_id`: The LAPLACE room ID to monitor (across all bridges)
+- `room_id`: The LAPLACE room ID to monitor
 - `slug`: Human-readable name for the room
 - `vip_users`: List of VIP user IDs (for future use)
 - `telegram_announce_ch`: Telegram channel ID for message events
 - `telegram_watchers_ch`: Telegram channel ID for gift and superchat events
+- `bridge` (optional): Specific bridge name to monitor this room. If not specified, all bridges will monitor it (may result in duplicate events)
 
 ## Usage
 

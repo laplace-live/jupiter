@@ -13,6 +13,8 @@ export interface RoomConfig {
   minimum_guard_price?: number
   notify_room_enter?: boolean
   notify_watched_users_only?: boolean
+  /** Optional: Specific bridge name to monitor this room. If not specified, all bridges will monitor it */
+  bridge?: string
 }
 
 export interface EventBridgeConfig {
