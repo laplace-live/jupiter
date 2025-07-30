@@ -6,7 +6,7 @@
     "dev": "bun run --hot index.ts"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^0.2.1",
+    "@laplace.live/event-bridge-sdk": "^0.2.3",
     "@mtcute/bun": "^0.25.6",
     "@mtcute/dispatcher": "^0.25.6",
     "@mtcute/node": "^0.25.6",
