@@ -280,3 +280,7 @@ The bot handles the following event types:
 ## Development
 
 This project was created using `bun init` in bun v1.2.19. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+
+## License
+
+AGPL-3.0
