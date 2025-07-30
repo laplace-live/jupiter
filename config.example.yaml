@@ -1,0 +1,28 @@
+# Example configuration for laplace-jupiter
+# Copy this file to config.yaml and update with your room IDs and channel IDs
+
+# LAPLACE Event Bridge connection settings
+bridges:
+  - name: primary
+    url: wss://your-websocket-server.com
+    token: optional_authentication_key
+
+  - name: secondary
+    url: wss://another-server.com
+    token: another_token
+
+# Room configurations
+rooms:
+  - room_id: 25034104
+    slug: 明前奶绿
+    vip_users: []
+    telegram_announce_ch: -12345
+    telegram_watchers_ch: -12345
+    # Optional: Minimum gift price to notify (in coins, 1000 = 1 CNY, default: 100000)
+    minimum_gift_price: 100000
+    # Optional: Minimum guard price to notify (in coins, 1000 = 1 CNY, default: 200000)
+    minimum_guard_price: 200000
+    # Optional: Whether to notify room enter events (default: false)
+    notify_room_enter: false
+    # Optional: Only notify when VIP users enter (default: false)
+    notify_watched_users_only: false
