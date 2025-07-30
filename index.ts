@@ -25,8 +25,8 @@ config.rooms.forEach(room => {
 console.log(`Loaded configuration for ${config.rooms.length} rooms and ${config.bridges.length} event bridges`)
 
 const tg = new TelegramClient({
-  apiId: Number(process.env.API_ID!),
-  apiHash: process.env.API_HASH!,
+  apiId: Number(process.env['API_ID']!),
+  apiHash: process.env['API_HASH']!,
   storage: 'bot-data/session',
 })
 
@@ -310,7 +310,7 @@ for (const bridge of config.bridges) {
 async function start() {
   try {
     // Start Telegram bot first
-    const user = await tg.start({ botToken: process.env.BOT_TOKEN })
+    const user = await tg.start({ botToken: process.env['BOT_TOKEN'] })
     console.log('Logged in as', user.username)
 
     // Connect to all LAPLACE Event Bridges
