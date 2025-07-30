@@ -32,6 +32,7 @@ ENV NODE_ENV=production
 FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /app/src ./src
+COPY --from=prerelease /app/bot-data ./bot-data
 COPY --from=prerelease /app/package.json .
 COPY --from=prerelease /app/tsconfig.json .
 
