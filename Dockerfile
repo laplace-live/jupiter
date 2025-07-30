@@ -32,11 +32,11 @@ ENV NODE_ENV=production
 FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /app/src ./src
-COPY --from=prerelease /app/bot-data ./bot-data
 COPY --from=prerelease /app/package.json .
 COPY --from=prerelease /app/tsconfig.json .
 
 # run the app
+# https://github.com/oven-sh/bun/issues/14185
+RUN chown -R bun:bun /app
 USER bun
-EXPOSE 8080/tcp
 ENTRYPOINT [ "bun", "run", "start" ]

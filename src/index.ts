@@ -24,10 +24,25 @@ config.rooms.forEach(room => {
 
 console.log(`Loaded configuration for ${config.rooms.length} rooms and ${config.bridges.length} event bridges`)
 
+// Ensure bot-data directory exists
+const botDataDir = 'bot-data'
+const { stat, mkdir } = await import('node:fs/promises')
+
+try {
+  const stats = await stat(botDataDir)
+  if (stats.isDirectory()) {
+    console.log(`${botDataDir} directory already exists`)
+  }
+} catch (error) {
+  // Directory doesn't exist, create it
+  await mkdir(botDataDir, { recursive: true })
+  console.log(`Created ${botDataDir} directory`)
+}
+
 const tg = new TelegramClient({
   apiId: Number(process.env['TELEGRAM_API_ID']!),
   apiHash: process.env['TELEGRAM_API_HASH']!,
-  storage: 'bot-data/session',
+  storage: `${botDataDir}/session`,
 })
 
 // Create event bridge clients
