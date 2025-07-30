@@ -1,6 +1,8 @@
 export interface RoomConfig {
   room_id: number
   slug: string
+  /** Streamer's UID */
+  uid?: number
   show_slug?: boolean
   vip_users?: number[]
   telegram_announce_ch: number | string

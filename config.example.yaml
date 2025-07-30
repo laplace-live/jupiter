@@ -14,6 +14,7 @@ bridges:
 # Room configurations
 rooms:
   - room_id: 25034104
+    uid: 2132180406
     slug: 明前奶绿
     vip_users: []
     telegram_announce_ch: -12345
