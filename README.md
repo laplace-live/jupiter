@@ -4,6 +4,8 @@ High performance bilibili live events forwarder/monitor for social chats
 
 A bot that connects to multiple LAPLACE Event Bridge WebSocket servers simultaneously and aggregates live stream chat events to forward to social chats based on room configuration.
 
+This is the successor of [eop-blive](https://subspace.institute/docs/eye-of-providence/eop_blive) project.
+
 ## Features
 
 - 🔌 Connects to multiple LAPLACE Event Bridges simultaneously
