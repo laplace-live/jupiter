@@ -76,7 +76,7 @@ cp config.example.yaml config.yaml
 
 2. Create a `.env` file with your Telegram bot credentials:
 
-```env
+```ini
 # Telegram Bot Configuration
 TELEGRAM_API_ID=your_telegram_api_id
 TELEGRAM_API_HASH=your_telegram_api_hash
