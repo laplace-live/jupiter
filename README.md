@@ -2,7 +2,7 @@
 
 High performance bilibili live events forwarder/monitor for social chats
 
-A Telegram bot that connects to multiple LAPLACE Event Bridge WebSocket servers simultaneously and aggregates live stream chat events to forward to Telegram channels based on room configuration.
+A bot that connects to multiple LAPLACE Event Bridge WebSocket servers simultaneously and aggregates live stream chat events to forward to social chats based on room configuration.
 
 ## Features
 
@@ -22,11 +22,7 @@ The bot will:
 2. Connect to all configured LAPLACE Event Bridges
 3. Aggregate events from all bridges
 4. Filter incoming events by room ID
-5. Route events to appropriate Telegram channels:
-   - Gift events → `telegram_watchers_ch`
-   - SuperChat events → `telegram_watchers_ch`
-   - Message events → `telegram_announce_ch`
-   - Other events → Ignored
+5. Route events to appropriate social chats
 
 ## Multiple Event Bridges
 
