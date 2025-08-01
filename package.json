@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@laplace.live/event-bridge-sdk": "^0.2.3",
-    "@mtcute/bun": "^0.25.6",
+    "@mtcute/bun": "^0.25.7",
     "yaml": "^2.8.0"
   },
   "devDependencies": {
