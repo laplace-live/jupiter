@@ -8,7 +8,7 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^1.0.0",
+    "@laplace.live/event-bridge-sdk": "^1.0.1",
     "@mtcute/bun": "^0.25.7",
     "yaml": "^2.8.0"
   },
