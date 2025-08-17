@@ -22,9 +22,10 @@ jobs:
         id: git-cliff
         with:
           config: cliff.toml
-          args: --verbose
+          args: -vv --latest --strip header
         env:
-          OUTPUT: CHANGELOG.md
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Get version from tag
         id: get_version
