@@ -1,7 +1,8 @@
 /**
- * @type {import('prettier').Options}
+ * @see https://prettier.io/docs/configuration
+ * @type {import("prettier").Config}
  */
-export default {
+const config = {
   printWidth: 120,
   trailingComma: "es5",
   tabWidth: 2,
@@ -44,3 +45,5 @@ export default {
     '^[.]',
   ]
 }
+
+export default config
