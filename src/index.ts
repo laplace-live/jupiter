@@ -1,13 +1,14 @@
-import YAML from 'yaml'
 import { LaplaceEventBridgeClient } from '@laplace.live/event-bridge-sdk'
 import type { LaplaceEvent } from '@laplace.live/event-types'
 import { TelegramClient } from '@mtcute/bun'
 import type { CommonSendParams } from '@mtcute/bun/methods.js'
 import { md } from '@mtcute/markdown-parser'
+import YAML from 'yaml'
+
+import type { Config, EventBridgeConfig, RoomConfig } from './types'
 
 import { EMOJI_MAP, GUARD_TYPE_DICT, MUTE_BY_MAP, PRICE_TIER_EMOJI, SUPERCHAT_TIER_EMOJI } from './consts'
 import { EventStore, formatMessagesContext } from './eventStore'
-import type { Config, EventBridgeConfig, RoomConfig } from './types'
 import { timeFromNow } from './utils'
 
 // Load configuration
@@ -33,15 +34,19 @@ try {
   if (stats.isDirectory()) {
     console.log(`${botDataDir} directory already exists`)
   }
-} catch (error) {
+} catch {
   // Directory doesn't exist, create it
   await mkdir(botDataDir, { recursive: true })
   console.log(`Created ${botDataDir} directory`)
 }
 
+if (!process.env.TELEGRAM_API_ID || !process.env.TELEGRAM_API_HASH) {
+  throw new Error('TELEGRAM_API_ID and TELEGRAM_API_HASH are required')
+}
+
 const tg = new TelegramClient({
-  apiId: Number(process.env['TELEGRAM_API_ID']!),
-  apiHash: process.env['TELEGRAM_API_HASH']!,
+  apiId: Number(process.env.TELEGRAM_API_ID),
+  apiHash: process.env.TELEGRAM_API_HASH,
   storage: `${botDataDir}/session`,
 })
 
@@ -331,7 +336,7 @@ for (const bridge of config.bridges) {
 async function start() {
   try {
     // Start Telegram bot first
-    const user = await tg.start({ botToken: process.env['TELEGRAM_BOT_TOKEN'] })
+    const user = await tg.start({ botToken: process.env.TELEGRAM_BOT_TOKEN })
     console.log('Logged in as', user.username)
 
     // Connect to all LAPLACE Event Bridges
