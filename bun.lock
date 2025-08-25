@@ -4,8 +4,8 @@
     "": {
       "name": "laplace-jupiter",
       "dependencies": {
-        "@laplace.live/event-bridge-sdk": "^1.0.3",
-        "@mtcute/bun": "^0.25.7",
+        "@laplace.live/event-bridge-sdk": "^1.0.4",
+        "@mtcute/bun": "^0.25.8",
         "yaml": "^2.8.1",
       },
       "devDependencies": {
@@ -46,7 +46,7 @@
 
     "@fuman/utils": ["@fuman/utils@0.0.15", "", {}, "sha512-3H3WzkfG7iLKCa/yNV4s80lYD4yr5hgiNzU13ysLY2BcDqFjM08XGYuLd5wFVp4V8+DA/fe8gIDW96To/JwDyA=="],
 
-    "@laplace.live/event-bridge-sdk": ["@laplace.live/event-bridge-sdk@1.0.3", "", { "dependencies": { "@laplace.live/event-types": "^2.0.12" } }, "sha512-sWUWO0WqePDfoqeY33AxHTmkTrX00whEfLZ4IIpiksxM+Knb44BV3aQR4MlbAy6hr76o1VQTmkFO+/bBeukiUw=="],
+    "@laplace.live/event-bridge-sdk": ["@laplace.live/event-bridge-sdk@1.0.4", "", { "dependencies": { "@laplace.live/event-types": "^2.0.12" } }, "sha512-vGOKpwFMSmnemi13F+phoYB78xs1qmx4y7H53D3mgwXOKpfzwxn4dz4m+nDGyy07FHZ+hTQ7siUUrVNjVbAiMw=="],
 
     "@laplace.live/event-types": ["@laplace.live/event-types@2.0.12", "", { "dependencies": { "@bufbuild/protobuf": "^2.6.2", "@laplace.live/internal": "^1.1.114" }, "peerDependencies": { "typescript": "^5.8.3" } }, "sha512-7KkMnn9+BhnkZkPKTXZpiArZFwoC1K9NG98O02Q0V8v+VnSzCsxUOV9yTLtfyststlkw4jou1yT/FzZe/IGgBw=="],
 

@@ -10,7 +10,7 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^1.0.3",
+    "@laplace.live/event-bridge-sdk": "^1.0.4",
     "@mtcute/bun": "^0.25.8",
     "yaml": "^2.8.1"
   },
