@@ -3,7 +3,7 @@ import type { LaplaceEvent } from '@laplace.live/event-types'
 import { TelegramClient } from '@mtcute/bun'
 import type { CommonSendParams } from '@mtcute/bun/methods.js'
 import { md } from '@mtcute/markdown-parser'
-import YAML from 'yaml'
+import { YAML } from 'bun'
 
 import type { Config, EventBridgeConfig, RoomConfig } from './types'
 
