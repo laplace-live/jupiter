@@ -14,7 +14,7 @@
     "@mtcute/bun": "^0.25.8"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.2",
+    "@biomejs/biome": "^2.2.4",
     "@types/bun": "latest"
   },
   "peerDependencies": {
