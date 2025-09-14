@@ -283,8 +283,10 @@ const handleEvent = async (event: LaplaceEvent, bridge: EventBridgeConfig) => {
     }
 
     if (event.type === 'live-start') {
-      const message = `${slug}#b站开播 🥳\n\n[${timeFromNow(event.timestampNormalized)}](https://live.bilibili.com/${event.origin}) | [LAPLACE Chat](https://chat.laplace.live/dashboard/${event.origin})`
-      await sender(message, senderOpts)
+      if (event.initial) {
+        const message = `${slug}#b站开播 🥳\n\n[${timeFromNow(event.timestampNormalized)}](https://live.bilibili.com/${event.origin}) | [LAPLACE Chat](https://chat.laplace.live/dashboard/${event.origin})`
+        await sender(message, senderOpts)
+      }
     }
 
     if (event.type === 'live-end') {

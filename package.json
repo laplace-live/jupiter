@@ -10,12 +10,12 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^1.0.4",
-    "@mtcute/bun": "^0.25.8"
+    "@laplace.live/event-bridge-sdk": "^1.0.7",
+    "@mtcute/bun": "^0.26.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.2",
-    "@types/bun": "latest"
+    "@biomejs/biome": "^2.2.4",
+    "@types/bun": "^1.2.21"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
