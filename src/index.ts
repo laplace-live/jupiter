@@ -3,18 +3,15 @@ import type { LaplaceEvent } from '@laplace.live/event-types'
 import { TelegramClient } from '@mtcute/bun'
 import type { CommonSendParams } from '@mtcute/bun/methods.js'
 import { md } from '@mtcute/markdown-parser'
-import { YAML } from 'bun'
 
-import type { Config, EventBridgeConfig, RoomConfig } from './types'
+import type { EventBridgeConfig, RoomConfig } from './types'
 
+import config from '../config.yaml'
 import { EMOJI_MAP, GUARD_TYPE_DICT, MUTE_BY_MAP, PRICE_TIER_EMOJI, SUPERCHAT_TIER_EMOJI } from './consts'
 import { EventStore, formatMessagesContext } from './eventStore'
 import { timeFromNow } from './utils'
 
 // Load configuration
-const configFile = await Bun.file('config.yaml').text()
-const config: Config = YAML.parse(configFile)
-
 // Create room map and event stores for each room
 const roomMap = new Map<number, RoomConfig>()
 const eventStores = new Map<number, EventStore>()
