@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@laplace.live/event-bridge-sdk": "^1.0.7",
-    "@mtcute/bun": "^0.26.0"
+    "@mtcute/bun": "^0.26.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
-    "@types/bun": "^1.2.22"
+    "@types/bun": "^1.2.23"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
