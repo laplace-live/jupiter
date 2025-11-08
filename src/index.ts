@@ -222,7 +222,7 @@ const handleEvent = async (event: LaplaceEvent, bridge: EventBridgeConfig) => {
     }
 
     if (event.type === 'room-name-update') {
-      const message = `${slug}#直播间标题更新  ${event.message}\n分区：${event.parentArea} - ${event.area}`
+      const message = `${slug}#直播间标题更新 ${event.message}\n分区：${event.parentArea} - ${event.area}`
       await sender(message, senderOpts)
     }
 
