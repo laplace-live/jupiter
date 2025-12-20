@@ -1,7 +1,7 @@
 {
   "name": "laplace-jupiter",
   "module": "index.ts",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
