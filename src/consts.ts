@@ -89,12 +89,3 @@ export function SUPERCHAT_TIER_EMOJI(price: number): string {
   if (price >= 30) return '🟦'
   return ''
 }
-
-// Mute by mapping
-export function MUTE_BY_MAP(muteBy: string): string {
-  if (muteBy === 'level') return '用户等级'
-  if (muteBy === 'wealth') return '荣耀等级'
-  if (muteBy === 'medal') return '粉丝勋章'
-  if (muteBy === 'member') return '全员'
-  return '未知'
-}

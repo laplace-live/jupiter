@@ -7,7 +7,7 @@ import { md } from '@mtcute/markdown-parser'
 import type { EventBridgeConfig, RoomConfig } from './types'
 
 import config from '../config.yaml'
-import { EMOJI_MAP, GUARD_TYPE_DICT, MUTE_BY_MAP, PRICE_TIER_EMOJI, SUPERCHAT_TIER_EMOJI } from './consts'
+import { EMOJI_MAP, GUARD_TYPE_DICT, PRICE_TIER_EMOJI, SUPERCHAT_TIER_EMOJI } from './consts'
 import { EventStore, formatMessagesContext } from './eventStore'
 import { timeFromNow } from './utils'
 
@@ -253,9 +253,7 @@ const handleEvent = async (event: LaplaceEvent, bridge: EventBridgeConfig) => {
     }
 
     if (event.type === 'room-mute-on') {
-      const levelText = event.muteLevel === -1 ? '永久😭' : `${event.muteLevel} 级`
-      const muteBy = MUTE_BY_MAP(event.muteBy)
-      const message = `${slug}#开启直播间禁言🤐 #${muteBy}禁言 ${levelText}`
+      const message = `${slug}#开启直播间禁言🤐 ${event.message}`
       await sender(message, senderOpts)
     }
 
