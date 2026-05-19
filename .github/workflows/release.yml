@@ -1,46 +1,44 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ['Docker']
-    types:
-      - completed
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_branch }}
 
-      - name: Generate a changelog
-        uses: orhun/git-cliff-action@v4
-        id: git-cliff
+      - uses: oven-sh/setup-bun@v2
         with:
-          config: cliff.toml
-          args: -vv --latest --strip header
-        env:
-          OUTPUT: CHANGES.md
-          GITHUB_REPO: ${{ github.repository }}
+          bun-version: latest
 
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+      - run: bun install --frozen-lockfile
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
+      - run: sudo npm install -g npm@latest
+      - name: Create release PR or tag
+        uses: changesets/action@v1
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: ${{ steps.get_version.outputs.VERSION }}
-          body: ${{ steps.git-cliff.outputs.content }}
-          draft: false
-          prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-rc') || contains(steps.get_version.outputs.VERSION, '-beta') || contains(steps.get_version.outputs.VERSION, '-alpha') }}
+          version: bun run version
+          publish: bun run release
+          # We don't publish to npm; `bun run release` pushes a git tag,
+          # which triggers the Docker workflow to build & push the image.
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

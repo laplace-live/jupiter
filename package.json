@@ -2,12 +2,15 @@
   "name": "laplace-jupiter",
   "module": "index.ts",
   "version": "1.0.6",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "version": "changeset version",
+    "release": "changeset tag"
   },
   "dependencies": {
     "@laplace.live/event-bridge-sdk": "^1.0.24",
@@ -15,6 +18,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "@changesets/cli": "^2.31.0",
     "@types/bun": "^1.3.14"
   },
   "peerDependencies": {
