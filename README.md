@@ -8,13 +8,13 @@ This is the successor of [eop-blive](https://subspace.institute/docs/eye-of-prov
 
 ## Features
 
-- 🔌 Connects to multiple LAPLACE Event Bridges simultaneously
-- 📡 Aggregates events from all connected bridges
-- 🎯 Room-based event filtering and routing
-- 💬 Different channels for different event types (gifts vs other events)
-- 🔄 Automatic reconnection support for each bridge
-- 📋 YAML-based configuration
-- 🔀 Fault tolerance - continues running even if some bridges fail
+- Connects to multiple LAPLACE Event Bridges simultaneously
+- Aggregates events from all connected bridges
+- Room-based event filtering and routing
+- Different channels for different event types (gifts vs other events)
+- Automatic reconnection support for each bridge
+- YAML-based configuration
+- Fault tolerance - continues running even if some bridges fail
 
 ## How It Works
 
