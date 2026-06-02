@@ -5,7 +5,7 @@
     "": {
       "name": "laplace-jupiter",
       "dependencies": {
-        "@laplace.live/event-bridge-sdk": "^1.0.24",
+        "@laplace.live/event-bridge-sdk": "^1.1.0",
         "@mtcute/bun": "0.29.7",
       },
       "devDependencies": {
@@ -85,7 +85,7 @@
 
     "@inquirer/external-editor": ["@inquirer/external-editor@1.0.3", "", { "dependencies": { "chardet": "^2.1.1", "iconv-lite": "^0.7.0" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA=="],
 
-    "@laplace.live/event-bridge-sdk": ["@laplace.live/event-bridge-sdk@1.0.24", "", { "dependencies": { "@laplace.live/event-types": "^2.0.18" } }, "sha512-dxaeR8lNGdVXEekbwRPbzD1HilQdSB+P1I4WjgxCv2osBnQVMNI09LMWmEJUr4STakQuMILI5YN/as+x3ctqiA=="],
+    "@laplace.live/event-bridge-sdk": ["@laplace.live/event-bridge-sdk@1.1.0", "", { "dependencies": { "@laplace.live/event-types": "^2.0.18" } }, "sha512-cqvh8JCGmplIHed8WkzdEbPvzJMlfUWecDyBHdHyEYOAg5sWaSWB0Nsq5EjzxqPYUvpVIMka4v8ijLDVQHbeUQ=="],
 
     "@laplace.live/event-types": ["@laplace.live/event-types@2.0.18", "", { "dependencies": { "@bufbuild/protobuf": "^2.12.0", "@laplace.live/internal": "^1.3.18" }, "peerDependencies": { "typescript": "^5.9.2" } }, "sha512-G+3nNlPWNN8AtgCO9ca7Sf8OQaHQqU1ZwZM2bqMtP/tsrpfBGEA2phzCtbMqrgdT4pT6WvzGIe8GsqtCCUCq0g=="],
 

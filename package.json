@@ -13,7 +13,7 @@
     "release": "changeset tag"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^1.0.24",
+    "@laplace.live/event-bridge-sdk": "^1.1.0",
     "@mtcute/bun": "0.29.7"
   },
   "devDependencies": {
