@@ -203,3 +203,89 @@ export function formatSummary(s: StreamSummary, room: RoomConfig): string {
 
   return blocks.join('\n\n')
 }
+
+export interface SessionManagerOptions {
+  debounceMs: number
+  onSummary: (roomId: number, summary: StreamSummary) => void | Promise<void>
+}
+
+/**
+ * Per-room lifecycle state machine for stream summaries.
+ *
+ * State is derived from two maps: a room with a session is LIVE (no timer) or
+ * ENDING (timer pending); a room with no session is IDLE. This makes the
+ * manager idempotent against Bilibili's repeated live-start/live-end events.
+ */
+export class SessionManager {
+  private readonly debounceMs: number
+  private readonly onSummary: (roomId: number, summary: StreamSummary) => void | Promise<void>
+  private readonly sessions = new Map<number, SessionStats>()
+  private readonly timers = new Map<number, ReturnType<typeof setTimeout>>()
+  private readonly pendingEndAt = new Map<number, number>()
+
+  constructor(opts: SessionManagerOptions) {
+    this.debounceMs = opts.debounceMs
+    this.onSummary = opts.onSummary
+  }
+
+  handle(roomId: number, event: LaplaceEvent): void {
+    switch (event.type) {
+      case 'live-start': {
+        const timer = this.timers.get(roomId)
+        if (timer) {
+          // ENDING -> resume: brief blip, keep counting the same session
+          clearTimeout(timer)
+          this.timers.delete(roomId)
+          this.pendingEndAt.delete(roomId)
+        } else if (!this.sessions.has(roomId)) {
+          // IDLE -> start a new session
+          this.sessions.set(roomId, new SessionStats(event.timestampNormalized, false))
+        }
+        // else LIVE duplicate -> ignore (do not reset stats)
+        return
+      }
+      case 'live-end': {
+        if (!this.sessions.has(roomId)) return // IDLE -> nothing to end
+        this.pendingEndAt.set(roomId, event.timestampNormalized)
+        const existing = this.timers.get(roomId)
+        if (existing) clearTimeout(existing)
+        this.timers.set(
+          roomId,
+          setTimeout(() => this.finalizeRoom(roomId), this.debounceMs),
+        )
+        return
+      }
+      default: {
+        if (!RECORDABLE_TYPES.has(event.type)) return
+        let session = this.sessions.get(roomId)
+        if (!session) {
+          // Bot started mid-stream: no live-start was seen -> partial session
+          session = new SessionStats(event.timestampNormalized, true)
+          this.sessions.set(roomId, session)
+        }
+        session.record(event)
+        return
+      }
+    }
+  }
+
+  /** Cancel all pending debounce timers (e.g. on shutdown). */
+  clearAllTimers(): void {
+    for (const timer of this.timers.values()) clearTimeout(timer)
+    this.timers.clear()
+  }
+
+  private finalizeRoom(roomId: number): void {
+    const session = this.sessions.get(roomId)
+    const endedAt = this.pendingEndAt.get(roomId)
+    this.timers.delete(roomId)
+    this.pendingEndAt.delete(roomId)
+    this.sessions.delete(roomId)
+    if (!session || endedAt === undefined) return
+
+    const summary = session.finalize(endedAt)
+    Promise.resolve(this.onSummary(roomId, summary)).catch(err =>
+      console.error(`[summary] onSummary failed for room ${roomId}:`, err),
+    )
+  }
+}

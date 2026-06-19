@@ -157,3 +157,100 @@ test('formatSummary marks partial sessions', () => {
   s.partial = true
   expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
 })
+
+import { SessionManager } from './streamSummary'
+import type { StreamSummary } from './streamSummary'
+
+function makeManager() {
+  const calls: Array<{ roomId: number; summary: StreamSummary }> = []
+  const manager = new SessionManager({
+    debounceMs: 30,
+    onSummary: (roomId, summary) => {
+      calls.push({ roomId, summary })
+    },
+  })
+  return { calls, manager }
+}
+
+test('SessionManager: emits one summary after a normal stream', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.roomId).toBe(100)
+  expect(calls[0]!.summary.chats).toBe(1)
+  expect(calls[0]!.summary.endedAt).toBe(2_000)
+  expect(calls[0]!.summary.partial).toBe(false)
+})
+
+test('SessionManager: ignores duplicate live-start bursts (no reset)', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_001 })) // duplicate
+  manager.handle(100, ev('message', { uid: 2, username: 'b' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.chats).toBe(2)
+  expect(calls[0]!.summary.startedAt).toBe(1_000)
+})
+
+test('SessionManager: collapses duplicate live-end bursts into one summary', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_001 })) // duplicate burst
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.endedAt).toBe(2_001)
+})
+
+test('SessionManager: a brief end->start flap is one continuous stream', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 })) // blip
+  manager.handle(100, ev('live-start', { timestampNormalized: 2_010 })) // resume within window
+  manager.handle(100, ev('message', { uid: 2, username: 'b' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 3_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.chats).toBe(2)
+  expect(calls[0]!.summary.startedAt).toBe(1_000)
+  expect(calls[0]!.summary.endedAt).toBe(3_000)
+})
+
+test('SessionManager: events without a live-start produce a partial summary', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 5_000 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.partial).toBe(true)
+  expect(calls[0]!.summary.startedAt).toBe(5_000)
+})
+
+test('SessionManager: live-end with no session is ignored', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
+  await Bun.sleep(60)
+  expect(calls.length).toBe(0)
+})
+
+test('SessionManager: clearAllTimers cancels a pending summary', async () => {
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  manager.clearAllTimers()
+  await Bun.sleep(60)
+  expect(calls.length).toBe(0)
+})
