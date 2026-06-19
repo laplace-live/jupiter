@@ -1,4 +1,7 @@
 import type { LaplaceEvent } from '@laplace.live/event-types'
+import type { RoomConfig } from './types'
+
+import { formatDuration } from './utils'
 
 export interface StreamSummary {
   startedAt: number
@@ -144,4 +147,59 @@ export class SessionStats {
       topChatter,
     }
   }
+}
+
+function fmtMoney(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 1 })
+}
+
+function fmtNum(n: number): string {
+  return n.toLocaleString('en-US')
+}
+
+function clock(ts: number): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(ts)
+}
+
+/** Render a StreamSummary as a Telegram markdown message. Pure. */
+export function formatSummary(s: StreamSummary, room: RoomConfig): string {
+  const blocks: string[] = []
+
+  let header = `#直播总结 📊 ${room.slug}`
+  if (s.partial) header = `⚠️ 部分数据（监控中途启动）\n${header}`
+  blocks.push(header)
+
+  blocks.push(`🕐 时长 ${formatDuration(s.durationMs)}  ·  ${clock(s.startedAt)} → ${clock(s.endedAt)}`)
+
+  const money: string[] = []
+  if (s.gifts.count > 0) money.push(`   🎁 礼物 ${fmtNum(s.gifts.count)} ¥${fmtMoney(s.gifts.revenue)}`)
+  if (s.sc.count > 0) money.push(`   💌 醒目留言 ${fmtNum(s.sc.count)} ¥${fmtMoney(s.sc.revenue)}`)
+  if (s.guards.count > 0) money.push(`   ⚓ 大航海 ${fmtNum(s.guards.count)} ¥${fmtMoney(s.guards.revenue)}`)
+  if (money.length > 0) {
+    blocks.push([`💰 总收入 ¥${fmtMoney(s.totalRevenue)}`, ...money].join('\n'))
+  }
+
+  const audience: string[] = []
+  if (s.watchedMax > 0) audience.push(`👥 看过 ${fmtNum(s.watchedMax)}`)
+  if (s.onlinePeak > 0) audience.push(`🟢 峰值在线 ${fmtNum(s.onlinePeak)}`)
+  if (s.likesMax > 0) audience.push(`👍 点赞 ${fmtNum(s.likesMax)}`)
+  if (s.newFollows > 0) audience.push(`➕ 新增关注 ${fmtNum(s.newFollows)}`)
+  if (audience.length > 0) blocks.push(audience.join('  ·  '))
+
+  const chat: string[] = [`💬 弹幕 ${fmtNum(s.chats)}`]
+  if (s.uniqueChatters > 0) chat.push(`🗣️ 发言 ${fmtNum(s.uniqueChatters)} 人`)
+  blocks.push(chat.join('  ·  '))
+
+  const highlights: string[] = []
+  if (s.topGifter) highlights.push(`🏆 最佳金主 ${s.topGifter.name} ¥${fmtMoney(s.topGifter.total)}`)
+  if (s.biggestSc) highlights.push(`🔥 最高 SC ${s.biggestSc.name} ¥${fmtMoney(s.biggestSc.amount)}`)
+  if (s.topChatter) highlights.push(`⚡ 最活跃 ${s.topChatter.name} ${fmtNum(s.topChatter.count)} 条`)
+  if (highlights.length > 0) blocks.push(highlights.join('\n'))
+
+  return blocks.join('\n\n')
 }

@@ -87,3 +87,73 @@ test('SessionStats with no activity yields empty summary', () => {
   expect(s.biggestSc).toBeNull()
   expect(s.topChatter).toBeNull()
 })
+
+import type { RoomConfig } from './types'
+
+import { formatSummary } from './streamSummary'
+
+const room = { slug: '测试', telegram_announce_ch: 1, telegram_watchers_ch: 1 } as unknown as RoomConfig
+
+function baseSummary(): import('./streamSummary').StreamSummary {
+  return {
+    startedAt: 0,
+    endedAt: 13_320_000,
+    durationMs: 13_320_000,
+    partial: false,
+    chats: 3,
+    uniqueChatters: 2,
+    watchedMax: 250,
+    onlinePeak: 80,
+    likesMax: 3_000,
+    newFollows: 2,
+    gifts: { count: 2, revenue: 1_240.5 },
+    sc: { count: 2, revenue: 980 },
+    guards: { count: 2, revenue: 597 },
+    totalRevenue: 2_817.5,
+    topGifter: { uid: 2, name: 'b', total: 680 },
+    biggestSc: { uid: 1, name: 'a', amount: 500, message: 'yo' },
+    topChatter: { uid: 1, name: 'a', count: 142 },
+  }
+}
+
+test('formatSummary renders all sections', () => {
+  const out = formatSummary(baseSummary(), room)
+  expect(out).toContain('#直播总结')
+  expect(out).toContain('测试')
+  expect(out).toContain('时长 3小时42分')
+  expect(out).toContain('总收入 ¥2,817.5')
+  expect(out).toContain('🎁 礼物 2 ¥1,240.5')
+  expect(out).toContain('💌 醒目留言 2 ¥980')
+  expect(out).toContain('⚓ 大航海 2 ¥597')
+  expect(out).toContain('看过 250')
+  expect(out).toContain('峰值在线 80')
+  expect(out).toContain('点赞 3,000')
+  expect(out).toContain('新增关注 2')
+  expect(out).toContain('弹幕 3')
+  expect(out).toContain('发言 2 人')
+  expect(out).toContain('最佳金主 b ¥680')
+  expect(out).toContain('最高 SC a ¥500')
+  expect(out).toContain('最活跃 a 142 条')
+})
+
+test('formatSummary omits empty sections', () => {
+  const s = baseSummary()
+  s.gifts = { count: 0, revenue: 0 }
+  s.sc = { count: 0, revenue: 0 }
+  s.guards = { count: 0, revenue: 0 }
+  s.totalRevenue = 0
+  s.topGifter = null
+  s.biggestSc = null
+  const out = formatSummary(s, room)
+  expect(out).not.toContain('总收入')
+  expect(out).not.toContain('最佳金主')
+  expect(out).not.toContain('最高 SC')
+  expect(out).toContain('#直播总结')
+  expect(out).toContain('弹幕 3')
+})
+
+test('formatSummary marks partial sessions', () => {
+  const s = baseSummary()
+  s.partial = true
+  expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
+})
