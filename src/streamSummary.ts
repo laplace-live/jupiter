@@ -1,4 +1,5 @@
 import type { LaplaceEvent } from '@laplace.live/event-types'
+
 import type { RoomConfig } from './types'
 
 import { formatDuration } from './utils'
@@ -251,7 +252,7 @@ export class SessionManager {
         if (existing) clearTimeout(existing)
         this.timers.set(
           roomId,
-          setTimeout(() => this.finalizeRoom(roomId), this.debounceMs),
+          setTimeout(() => this.finalizeRoom(roomId), this.debounceMs)
         )
         return
       }
@@ -285,7 +286,7 @@ export class SessionManager {
 
     const summary = session.finalize(endedAt)
     Promise.resolve(this.onSummary(roomId, summary)).catch(err =>
-      console.error(`[summary] onSummary failed for room ${roomId}:`, err),
+      console.error(`[summary] onSummary failed for room ${roomId}:`, err)
     )
   }
 }

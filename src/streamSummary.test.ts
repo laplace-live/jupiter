@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test'
-
 import type { LaplaceEvent } from '@laplace.live/event-types'
 
 import { SessionStats } from './streamSummary'
@@ -158,8 +157,9 @@ test('formatSummary marks partial sessions', () => {
   expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
 })
 
-import { SessionManager } from './streamSummary'
 import type { StreamSummary } from './streamSummary'
+
+import { SessionManager } from './streamSummary'
 
 function makeManager() {
   const calls: Array<{ roomId: number; summary: StreamSummary }> = []
