@@ -73,7 +73,7 @@ test('SessionStats accumulates a full event sequence', () => {
   expect(s.guards).toEqual({ count: 2, revenue: 396 })
   expect(s.totalRevenue).toBe(586)
   expect(s.topGifter).toEqual({ uid: 2, name: 'b', total: 30 })
-  expect(s.biggestSc).toEqual({ uid: 1, name: 'a', amount: 100, message: 'yo' })
+  expect(s.biggestSc).toEqual({ uid: 1, name: 'a', amount: 100 })
   expect(s.topChatter).toEqual({ uid: 1, name: 'a', count: 2 })
 })
 
@@ -110,7 +110,7 @@ function baseSummary(): import('./streamSummary').StreamSummary {
     guards: { count: 2, revenue: 597 },
     totalRevenue: 2_817.5,
     topGifter: { uid: 2, name: 'b', total: 680 },
-    biggestSc: { uid: 1, name: 'a', amount: 500, message: 'yo' },
+    biggestSc: { uid: 1, name: 'a', amount: 500 },
     topChatter: { uid: 1, name: 'a', count: 142 },
   }
 }
@@ -253,4 +253,43 @@ test('SessionManager: clearAllTimers cancels a pending summary', async () => {
   manager.clearAllTimers()
   await Bun.sleep(60)
   expect(calls.length).toBe(0)
+})
+
+test('SessionManager: handles the SDK firing live-start twice on a real start', async () => {
+  // Bilibili always fires live-start twice at the start of a stream
+  // (see @laplace.live/event-types live-start.ts: "开播事件必会触发两次").
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000, initial: true }))
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_002 })) // second fire, no initial
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.chats).toBe(1)
+  expect(calls[0]!.summary.startedAt).toBe(1_000) // first fire wins, no reset
+})
+
+test('SessionManager: keeps sequential streams in the same room independent', async () => {
+  const { calls, manager } = makeManager()
+
+  // Stream A
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a' }))
+  manager.handle(100, ev('message', { uid: 2, username: 'b' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  await Bun.sleep(60)
+
+  // Stream B in the same room, after A finalized
+  manager.handle(100, ev('live-start', { timestampNormalized: 3_000 }))
+  manager.handle(100, ev('message', { uid: 3, username: 'c' }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 4_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(2)
+  expect(calls[0]!.summary.chats).toBe(2)
+  expect(calls[0]!.summary.startedAt).toBe(1_000)
+  expect(calls[1]!.summary.chats).toBe(1) // not polluted by stream A
+  expect(calls[1]!.summary.startedAt).toBe(3_000)
+  expect(calls[1]!.summary.endedAt).toBe(4_000)
 })

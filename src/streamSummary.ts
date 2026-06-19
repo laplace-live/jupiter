@@ -21,7 +21,7 @@ export interface StreamSummary {
   guards: { count: number; revenue: number }
   totalRevenue: number
   topGifter: { uid: number; name: string; total: number } | null
-  biggestSc: { uid: number; name: string; amount: number; message: string } | null
+  biggestSc: { uid: number; name: string; amount: number } | null
   topChatter: { uid: number; name: string; count: number } | null
 }
 
@@ -55,7 +55,7 @@ export class SessionStats {
   private guardCount = 0
   private guardRevenue = 0
   private readonly gifters = new Map<number, { name: string; total: number }>()
-  private biggestSc: { uid: number; name: string; amount: number; message: string } | null = null
+  private biggestSc: { uid: number; name: string; amount: number } | null = null
 
   constructor(startedAt: number, partial: boolean) {
     this.startedAt = startedAt
@@ -96,12 +96,7 @@ export class SessionStats {
         this.scCount++
         this.scRevenue += event.priceNormalized
         if (!this.biggestSc || event.priceNormalized > this.biggestSc.amount) {
-          this.biggestSc = {
-            uid: event.uid,
-            name: event.username,
-            amount: event.priceNormalized,
-            message: event.message,
-          }
+          this.biggestSc = { uid: event.uid, name: event.username, amount: event.priceNormalized }
         }
         break
       case 'toast':
@@ -243,6 +238,7 @@ export class SessionManager {
           this.sessions.set(roomId, new SessionStats(event.timestampNormalized, false))
         }
         // else LIVE duplicate -> ignore (do not reset stats)
+        // (Bilibili fires live-start twice on a real start — the second is a no-op here.)
         return
       }
       case 'live-end': {
