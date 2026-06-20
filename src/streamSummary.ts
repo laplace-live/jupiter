@@ -12,14 +12,20 @@ export interface StreamSummary {
   partial: boolean
   chats: number
   uniqueChatters: number
+  /** chats / uniqueChatters (0 when nobody chatted). */
+  chatsPerCapita: number
   watchedMax: number
   onlinePeak: number
+  /** Mean of all online-update samples (simple sample mean; 0 when none seen). */
+  avgOnline: number
   likesMax: number
   newFollows: number
   gifts: { count: number; revenue: number }
   sc: { count: number; revenue: number }
   guards: { count: number; revenue: number }
   totalRevenue: number
+  /** totalRevenue per hour of duration (0 when duration is 0). */
+  hourlyRevenue: number
   topGifter: { uid: number; name: string; total: number } | null
   biggestSc: { uid: number; name: string; amount: number; message: string } | null
   topChatter: { uid: number; name: string; count: number } | null
@@ -46,6 +52,8 @@ export class SessionStats {
   private readonly chatters = new Map<number, { name: string; count: number }>()
   private watchedMax = 0
   private onlinePeak = 0
+  private onlineSum = 0
+  private onlineSamples = 0
   private likesMax = 0
   private newFollows = 0
   private giftCount = 0
@@ -76,6 +84,8 @@ export class SessionStats {
         break
       case 'online-update':
         if (event.online > this.onlinePeak) this.onlinePeak = event.online
+        this.onlineSum += event.online
+        this.onlineSamples++
         break
       case 'likes-update':
         if (event.likes > this.likesMax) this.likesMax = event.likes
@@ -128,21 +138,27 @@ export class SessionStats {
       }
     }
 
+    const durationMs = Math.max(0, endedAt - this.startedAt)
+    const totalRevenue = this.giftRevenue + this.scRevenue + this.guardRevenue
+
     return {
       startedAt: this.startedAt,
       endedAt,
-      durationMs: Math.max(0, endedAt - this.startedAt),
+      durationMs,
       partial: this.partial,
       chats: this.chats,
       uniqueChatters: this.chatters.size,
+      chatsPerCapita: this.chatters.size > 0 ? this.chats / this.chatters.size : 0,
       watchedMax: this.watchedMax,
       onlinePeak: this.onlinePeak,
+      avgOnline: this.onlineSamples > 0 ? this.onlineSum / this.onlineSamples : 0,
       likesMax: this.likesMax,
       newFollows: this.newFollows,
       gifts: { count: this.giftCount, revenue: this.giftRevenue },
       sc: { count: this.scCount, revenue: this.scRevenue },
       guards: { count: this.guardCount, revenue: this.guardRevenue },
-      totalRevenue: this.giftRevenue + this.scRevenue + this.guardRevenue,
+      totalRevenue,
+      hourlyRevenue: durationMs > 0 ? totalRevenue / (durationMs / 3_600_000) : 0,
       topGifter,
       biggestSc: this.biggestSc,
       topChatter,
@@ -156,6 +172,10 @@ function fmtMoney(n: number): string {
 
 function fmtNum(n: number): string {
   return n.toLocaleString('en-US')
+}
+
+function fmtRatio(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 1 })
 }
 
 function clock(ts: number): string {
@@ -193,18 +213,22 @@ export function formatSummary(
   if (s.sc.count > 0) money.push(`💌 醒目留言 ${fmtNum(s.sc.count)} - ¥${fmtMoney(s.sc.revenue)}`)
   if (s.guards.count > 0) money.push(`⚓ 大航海 ${fmtNum(s.guards.count)} - ¥${fmtMoney(s.guards.revenue)}`)
   if (money.length > 0) {
-    blocks.push([`💰 总收入 ¥${fmtMoney(s.totalRevenue)}`, ...money].join('\n'))
+    const lines = [`💰 总收入 ¥${fmtMoney(s.totalRevenue)}`, ...money]
+    if (s.hourlyRevenue > 0) lines.push(`💵 时薪 ¥${fmtMoney(s.hourlyRevenue)}`)
+    blocks.push(lines.join('\n'))
   }
 
   const audience: string[] = []
   if (s.watchedMax > 0) audience.push(`👥 看过 ${fmtNum(s.watchedMax)}`)
   if (s.onlinePeak > 0) audience.push(`🟢 峰值同接 ${fmtNum(s.onlinePeak)}`)
+  if (s.avgOnline > 0) audience.push(`📊 平均同接 ${fmtNum(Math.round(s.avgOnline))}`)
   if (s.likesMax > 0) audience.push(`👍 点赞 ${fmtNum(s.likesMax)}`)
   if (s.newFollows > 0) audience.push(`➕ 新增关注 ${fmtNum(s.newFollows)}`)
   if (audience.length > 0) blocks.push(audience.join('\n'))
 
   const chat: string[] = [`💬 弹幕 ${fmtNum(s.chats)}`]
   if (s.uniqueChatters > 0) chat.push(`🗣️ 发言 ${fmtNum(s.uniqueChatters)} 人`)
+  if (s.chatsPerCapita > 0) chat.push(`📈 人均弹幕 ${fmtRatio(s.chatsPerCapita)} 条`)
   blocks.push(chat.join('\n'))
 
   const highlights: string[] = []

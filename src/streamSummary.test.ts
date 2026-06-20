@@ -65,14 +65,17 @@ test('SessionStats accumulates a full event sequence', () => {
   expect(s.partial).toBe(false)
   expect(s.chats).toBe(3)
   expect(s.uniqueChatters).toBe(2)
+  expect(s.chatsPerCapita).toBe(1.5)
   expect(s.watchedMax).toBe(250)
   expect(s.onlinePeak).toBe(80)
+  expect(s.avgOnline).toBe(65) // mean of online samples 50 and 80
   expect(s.likesMax).toBe(3_000)
   expect(s.newFollows).toBe(2)
   expect(s.gifts).toEqual({ count: 2, revenue: 40 })
   expect(s.sc).toEqual({ count: 2, revenue: 150 })
   expect(s.guards).toEqual({ count: 2, revenue: 396 })
   expect(s.totalRevenue).toBe(586)
+  expect(s.hourlyRevenue).toBeCloseTo(158.378, 2) // 586 revenue over 3.7h
   expect(s.topGifter).toEqual({ uid: 2, name: 'b', total: 30 })
   expect(s.biggestSc).toEqual({ uid: 1, name: 'a', amount: 100, message: 'yo' })
   expect(s.topChatter).toEqual({ uid: 1, name: 'a', count: 2 })
@@ -82,7 +85,10 @@ test('SessionStats with no activity yields empty summary', () => {
   const s = new SessionStats(1_000, false).finalize(2_000)
   expect(s.chats).toBe(0)
   expect(s.uniqueChatters).toBe(0)
+  expect(s.chatsPerCapita).toBe(0)
+  expect(s.avgOnline).toBe(0)
   expect(s.totalRevenue).toBe(0)
+  expect(s.hourlyRevenue).toBe(0)
   expect(s.topGifter).toBeNull()
   expect(s.biggestSc).toBeNull()
   expect(s.topChatter).toBeNull()
@@ -102,14 +108,17 @@ function baseSummary(): import('./streamSummary').StreamSummary {
     partial: false,
     chats: 3,
     uniqueChatters: 2,
+    chatsPerCapita: 1.5,
     watchedMax: 250,
     onlinePeak: 80,
+    avgOnline: 72,
     likesMax: 3_000,
     newFollows: 2,
     gifts: { count: 2, revenue: 1_240.5 },
     sc: { count: 2, revenue: 980 },
     guards: { count: 2, revenue: 597 },
     totalRevenue: 2_817.5,
+    hourlyRevenue: 761.5,
     topGifter: { uid: 2, name: 'b', total: 680 },
     biggestSc: { uid: 1, name: 'a', amount: 500, message: 'gg' },
     topChatter: { uid: 1, name: 'a', count: 142 },
@@ -122,19 +131,23 @@ test('formatSummary renders all sections', () => {
   expect(out).toContain('测试')
   expect(out).toContain('时长 3小时42分')
   expect(out).toContain('总收入 ¥2,817.5')
-  expect(out).toContain('🎁 礼物 2 ¥1,240.5')
-  expect(out).toContain('💌 醒目留言 2 ¥980')
-  expect(out).toContain('⚓ 大航海 2 ¥597')
+  expect(out).toContain('🎁 礼物 2 - ¥1,240.5')
+  expect(out).toContain('💌 醒目留言 2 - ¥980')
+  expect(out).toContain('⚓ 大航海 2 - ¥597')
+  expect(out).toContain('💵 时薪 ¥761.5')
   expect(out).toContain('看过 250')
   expect(out).toContain('峰值同接 80')
+  expect(out).toContain('📊 平均同接 72')
   expect(out).toContain('点赞 3,000')
   expect(out).toContain('新增关注 2')
   expect(out).toContain('弹幕 3')
   expect(out).toContain('发言 2 人')
-  // audience and chat metrics each render on their own line (no inline separators)
-  expect(out).toContain('👥 看过 250\n🟢 峰值同接 80\n👍 点赞 3,000\n➕ 新增关注 2')
-  expect(out).toContain('💬 弹幕 3\n🗣️ 发言 2 人')
-  expect(out).toContain('最佳金主 b ¥680')
+  expect(out).toContain('📈 人均弹幕 1.5 条')
+  // derived metrics sit at the end of their source block, each on its own line
+  expect(out).toContain('⚓ 大航海 2 - ¥597\n💵 时薪 ¥761.5')
+  expect(out).toContain('👥 看过 250\n🟢 峰值同接 80\n📊 平均同接 72\n👍 点赞 3,000\n➕ 新增关注 2')
+  expect(out).toContain('💬 弹幕 3\n🗣️ 发言 2 人\n📈 人均弹幕 1.5 条')
+  expect(out).toContain('最佳金主 b - ¥680')
   expect(out).toContain('最高 SC a ¥500: gg')
   expect(out).toContain('最活跃 a 142 条')
 })
@@ -149,6 +162,7 @@ test('formatSummary omits empty sections', () => {
   s.biggestSc = null
   const out = formatSummary(s, room)
   expect(out).not.toContain('总收入')
+  expect(out).not.toContain('时薪')
   expect(out).not.toContain('最佳金主')
   expect(out).not.toContain('最高 SC')
   expect(out).toContain('#直播总结')
