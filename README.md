@@ -15,6 +15,7 @@ This is the successor of [eop-blive](https://subspace.institute/docs/eye-of-prov
 - Automatic reconnection support for each bridge
 - YAML-based configuration
 - Fault tolerance - continues running even if some bridges fail
+- End-of-stream summary notifications (chat, audience, revenue, highlights)
 
 ## How It Works
 
@@ -49,6 +50,25 @@ Example log output:
 [primary] Event from room 明前奶绿 (25034104): message
 [secondary] Event from room 明前奶绿 (25034104): gift
 ```
+
+## Stream Summary
+
+When a monitored stream ends, the bot posts a single summary to the room's
+`telegram_announce_ch` with the stream's duration, chat activity, audience
+(看过 / peak online / likes / new follows), monetary totals (gifts, super
+chats, 大航海), and per-user highlights (top gifter, biggest super chat, most
+active chatter).
+
+Metrics are accumulated **in memory** — there is no database, and an in-progress
+stream's totals are lost if the process restarts. Bilibili fires
+`live-start`/`live-end` repeatedly and flaps on brief drops, so the summary is
+sent after a debounce window (`STREAM_SUMMARY_DEBOUNCE_MS`, default 45s) once the
+stream has truly ended.
+
+> **Multi-bridge note:** counts assume each room is pinned to a single `bridge`.
+> If a room is monitored by multiple bridges, duplicate events will inflate the
+> summary — pin the room to one bridge (as you already do to avoid duplicate
+> notifications).
 
 ## Prerequisites
 

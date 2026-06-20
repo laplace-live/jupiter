@@ -7,8 +7,15 @@ import { md } from '@mtcute/markdown-parser'
 import type { EventBridgeConfig, RoomConfig } from './types'
 
 import config from '../config.yaml'
-import { EMOJI_MAP, GUARD_TYPE_DICT, PRICE_TIER_EMOJI, SUPERCHAT_TIER_EMOJI } from './consts'
+import {
+  EMOJI_MAP,
+  GUARD_TYPE_DICT,
+  PRICE_TIER_EMOJI,
+  STREAM_SUMMARY_DEBOUNCE_MS,
+  SUPERCHAT_TIER_EMOJI,
+} from './consts'
 import { EventStore, formatMessagesContext } from './eventStore'
+import { formatSummary, SessionManager } from './streamSummary'
 import { timeFromNow } from './utils'
 
 // Load configuration
@@ -45,6 +52,22 @@ const tg = new TelegramClient({
   apiId: Number(process.env.TELEGRAM_API_ID),
   apiHash: process.env.TELEGRAM_API_HASH,
   storage: `${botDataDir}/session`,
+})
+
+// Stream summary: accumulate per-room metrics and emit a summary after each stream
+const summaryManager = new SessionManager({
+  debounceMs: STREAM_SUMMARY_DEBOUNCE_MS,
+  onSummary: async (roomId, summary) => {
+    const room = roomMap.get(roomId)
+    if (!room) return
+    const message = formatSummary(summary, room, md.escape)
+    try {
+      await tg.sendText(room.telegram_announce_ch, md(message), { disableWebPreview: true })
+      console.log(`[summary] Sent stream summary for ${room.slug} (${roomId})`)
+    } catch (err) {
+      console.error(`[summary] Failed to send summary for ${room.slug} (${roomId}):`, err)
+    }
+  },
 })
 
 // Create event bridge clients
@@ -87,6 +110,10 @@ const handleEvent = async (event: LaplaceEvent, bridge: EventBridgeConfig) => {
     console.log(`[${bridgeName}] Room ${roomId} is configured for bridge '${roomCfg.bridge}', skipping`)
     return
   }
+
+  // Accumulate metrics for the end-of-stream summary (respects the same
+  // single-bridge dedup as notifications above)
+  summaryManager.handle(roomId, event)
 
   // Store only message events in room-specific EventStore (for context feature)
   if (event.type === 'message') {
@@ -371,6 +398,9 @@ async function start() {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down...')
+
+  // Cancel any pending summary timers (in-memory data is discarded on shutdown)
+  summaryManager.clearAllTimers()
 
   // Disconnect all event bridges
   for (const { name, client } of clients) {

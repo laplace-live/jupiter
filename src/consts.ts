@@ -89,3 +89,12 @@ export function SUPERCHAT_TIER_EMOJI(price: number): string {
   if (price >= 30) return '🟦'
   return ''
 }
+
+/**
+ * Debounce window (ms) before emitting an end-of-stream summary.
+ *
+ * Bilibili fires live-start/live-end repeatedly (often several times within
+ * ~3s) and flaps end->start on brief encoder/network blips. This window
+ * collapses those bursts into a single logical stream and a single summary.
+ */
+export const STREAM_SUMMARY_DEBOUNCE_MS = 45_000
