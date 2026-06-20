@@ -182,7 +182,7 @@ export function formatSummary(
 ): string {
   const blocks: string[] = []
 
-  let header = `#直播总结 📊 ${room.slug}`
+  let header = `#${room.slug} #直播总结`
   if (s.partial) header = `⚠️ 部分数据（监控中途启动）\n${header}`
   blocks.push(header)
 
