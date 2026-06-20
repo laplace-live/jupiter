@@ -26,9 +26,10 @@ export interface StreamSummary {
   totalRevenue: number
   /** totalRevenue per hour of duration (0 when duration is 0). */
   hourlyRevenue: number
-  topGifter: { uid: number; name: string; total: number } | null
-  biggestSc: { uid: number; name: string; amount: number; message: string } | null
-  topChatter: { uid: number; name: string; count: number } | null
+  /** Top spenders by total normalized spend (gold gifts + SC + guards), descending (≤ TOP_N). */
+  topSpenders: Array<{ uid: number; name: string; total: number }>
+  /** Most active chatters by danmaku count, descending (≤ TOP_N). */
+  topChatters: Array<{ uid: number; name: string; count: number }>
 }
 
 /** Event types that contribute to a stream summary. */
@@ -42,6 +43,9 @@ export const RECORDABLE_TYPES = new Set<string>([
   'superchat',
   'toast',
 ])
+
+/** Max entries shown in each leaderboard (金主榜 / 弹幕榜). */
+const TOP_N = 10
 
 /** In-memory accumulator for a single live session. Pure: no I/O. */
 export class SessionStats {
@@ -62,12 +66,19 @@ export class SessionStats {
   private scRevenue = 0
   private guardCount = 0
   private guardRevenue = 0
-  private readonly gifters = new Map<number, { name: string; total: number }>()
-  private biggestSc: { uid: number; name: string; amount: number; message: string } | null = null
+  /** Per-viewer total normalized spend across all paid event types (金主榜 source). */
+  private readonly spenders = new Map<number, { name: string; total: number }>()
 
   constructor(startedAt: number, partial: boolean) {
     this.startedAt = startedAt
     this.partial = partial
+  }
+
+  /** Attribute a paid event's normalized amount to a viewer's running spend total. */
+  private addSpend(uid: number, name: string, amount: number): void {
+    const s = this.spenders.get(uid)
+    if (s) s.total += amount
+    else this.spenders.set(uid, { name, total: amount })
   }
 
   record(event: LaplaceEvent): void {
@@ -97,26 +108,18 @@ export class SessionStats {
         if (event.coinType === 'gold') {
           this.giftCount++
           this.giftRevenue += event.priceNormalized
-          const g = this.gifters.get(event.uid)
-          if (g) g.total += event.priceNormalized
-          else this.gifters.set(event.uid, { name: event.username, total: event.priceNormalized })
+          this.addSpend(event.uid, event.username, event.priceNormalized)
         }
         break
       case 'superchat':
         this.scCount++
         this.scRevenue += event.priceNormalized
-        if (!this.biggestSc || event.priceNormalized > this.biggestSc.amount) {
-          this.biggestSc = {
-            uid: event.uid,
-            name: event.username,
-            amount: event.priceNormalized,
-            message: event.message,
-          }
-        }
+        this.addSpend(event.uid, event.username, event.priceNormalized)
         break
       case 'toast':
         this.guardCount++
         this.guardRevenue += event.priceNormalized
+        this.addSpend(event.uid, event.username, event.priceNormalized)
         break
       default:
         break
@@ -124,19 +127,15 @@ export class SessionStats {
   }
 
   finalize(endedAt: number): StreamSummary {
-    let topChatter: StreamSummary['topChatter'] = null
-    for (const [uid, v] of this.chatters) {
-      if (!topChatter || v.count > topChatter.count) {
-        topChatter = { uid, name: v.name, count: v.count }
-      }
-    }
+    const topChatters = [...this.chatters.entries()]
+      .map(([uid, v]) => ({ uid, name: v.name, count: v.count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, TOP_N)
 
-    let topGifter: StreamSummary['topGifter'] = null
-    for (const [uid, v] of this.gifters) {
-      if (!topGifter || v.total > topGifter.total) {
-        topGifter = { uid, name: v.name, total: v.total }
-      }
-    }
+    const topSpenders = [...this.spenders.entries()]
+      .map(([uid, v]) => ({ uid, name: v.name, total: v.total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_N)
 
     const durationMs = Math.max(0, endedAt - this.startedAt)
     const totalRevenue = this.giftRevenue + this.scRevenue + this.guardRevenue
@@ -159,9 +158,8 @@ export class SessionStats {
       guards: { count: this.guardCount, revenue: this.guardRevenue },
       totalRevenue,
       hourlyRevenue: durationMs > 0 ? totalRevenue / (durationMs / 3_600_000) : 0,
-      topGifter,
-      biggestSc: this.biggestSc,
-      topChatter,
+      topSpenders,
+      topChatters,
     }
   }
 }
@@ -227,15 +225,14 @@ export function formatSummary(
   if (s.chatsPerCapita > 0) chat.push(`📈 人均弹幕 ${fmtMoney(s.chatsPerCapita)} 条`)
   blocks.push(chat.join('\n'))
 
-  const highlights: string[] = []
-  if (s.topGifter) highlights.push(`🏆 最佳金主 ${escapeText(s.topGifter.name)} - ¥${fmtMoney(s.topGifter.total)}`)
-  if (s.biggestSc) {
-    highlights.push(
-      `🔥 最高 SC ${escapeText(s.biggestSc.name)} ¥${fmtMoney(s.biggestSc.amount)}: ${escapeText(s.biggestSc.message)}`
-    )
+  if (s.topSpenders.length > 0) {
+    const lines = s.topSpenders.map((g, i) => `${i + 1}. ${escapeText(g.name)} ¥${fmtMoney(g.total)}`)
+    blocks.push(['🏆 金主榜', ...lines].join('\n'))
   }
-  if (s.topChatter) highlights.push(`⚡ 最活跃 ${escapeText(s.topChatter.name)} ${fmtNum(s.topChatter.count)} 条`)
-  if (highlights.length > 0) blocks.push(highlights.join('\n'))
+  if (s.topChatters.length > 0) {
+    const lines = s.topChatters.map((c, i) => `${i + 1}. ${escapeText(c.name)} ${fmtNum(c.count)} 条`)
+    blocks.push(['⚡ 弹幕榜', ...lines].join('\n'))
+  }
 
   return blocks.join('\n\n')
 }
