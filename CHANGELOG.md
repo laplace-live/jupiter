@@ -1,5 +1,11 @@
 # laplace-jupiter
 
+## 1.0.9
+
+### Patch Changes
+
+- 00d17d3: stream summary support
+
 ## 1.0.8
 
 ### Patch Changes
