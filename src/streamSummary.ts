@@ -299,7 +299,7 @@ export class SessionManager {
           return
         }
         const session = this.sessions.get(roomId)
-        if (!session || !session.hasLiveStart) {
+        if (!session?.hasLiveStart) {
           // IDLE -> start a new session, OR a partial session that a recordable
           // event opened before this live-start (pre-live chatter, or the first
           // event after a restart during stream prep) is now superseded by the

@@ -223,10 +223,10 @@ test('SessionManager: emits one summary after a normal stream', async () => {
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.roomId).toBe(100)
-  expect(calls[0]!.summary.chats).toBe(1)
-  expect(calls[0]!.summary.endedAt).toBe(2_000)
-  expect(calls[0]!.summary.partial).toBe(false)
+  expect(calls[0]?.roomId).toBe(100)
+  expect(calls[0]?.summary.chats).toBe(1)
+  expect(calls[0]?.summary.endedAt).toBe(2_000)
+  expect(calls[0]?.summary.partial).toBe(false)
 })
 
 test('SessionManager: ignores duplicate live-start bursts (no reset)', async () => {
@@ -239,8 +239,8 @@ test('SessionManager: ignores duplicate live-start bursts (no reset)', async () 
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.chats).toBe(2)
-  expect(calls[0]!.summary.startedAt).toBe(1_000)
+  expect(calls[0]?.summary.chats).toBe(2)
+  expect(calls[0]?.summary.startedAt).toBe(1_000)
 })
 
 test('SessionManager: collapses duplicate live-end bursts into one summary', async () => {
@@ -252,7 +252,7 @@ test('SessionManager: collapses duplicate live-end bursts into one summary', asy
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.endedAt).toBe(2_001)
+  expect(calls[0]?.summary.endedAt).toBe(2_001)
 })
 
 test('SessionManager: a brief end->start flap is one continuous stream', async () => {
@@ -266,9 +266,9 @@ test('SessionManager: a brief end->start flap is one continuous stream', async (
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.chats).toBe(2)
-  expect(calls[0]!.summary.startedAt).toBe(1_000)
-  expect(calls[0]!.summary.endedAt).toBe(3_000)
+  expect(calls[0]?.summary.chats).toBe(2)
+  expect(calls[0]?.summary.startedAt).toBe(1_000)
+  expect(calls[0]?.summary.endedAt).toBe(3_000)
 })
 
 test('SessionManager: events without a live-start produce a partial summary', async () => {
@@ -278,8 +278,8 @@ test('SessionManager: events without a live-start produce a partial summary', as
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.partial).toBe(true)
-  expect(calls[0]!.summary.startedAt).toBe(5_000)
+  expect(calls[0]?.summary.partial).toBe(true)
+  expect(calls[0]?.summary.startedAt).toBe(5_000)
 })
 
 test('SessionManager: a real live-start after pre-live events adopts the true start', async () => {
@@ -295,10 +295,10 @@ test('SessionManager: a real live-start after pre-live events adopts the true st
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.partial).toBe(false) // the real start was observed
-  expect(calls[0]!.summary.startedAt).toBe(5_100) // live-start time, not the 5_000 join
-  expect(calls[0]!.summary.endedAt).toBe(9_000)
-  expect(calls[0]!.summary.chats).toBe(1) // pre-live chatter dropped; only counts from the real start
+  expect(calls[0]?.summary.partial).toBe(false) // the real start was observed
+  expect(calls[0]?.summary.startedAt).toBe(5_100) // live-start time, not the 5_000 join
+  expect(calls[0]?.summary.endedAt).toBe(9_000)
+  expect(calls[0]?.summary.chats).toBe(1) // pre-live chatter dropped; only counts from the real start
 })
 
 test('SessionManager: the second live-start fire does not reset a just-promoted session', async () => {
@@ -314,9 +314,9 @@ test('SessionManager: the second live-start fire does not reset a just-promoted 
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.partial).toBe(false)
-  expect(calls[0]!.summary.startedAt).toBe(1_000) // first fire wins, not the 1_002 second fire
-  expect(calls[0]!.summary.chats).toBe(1) // pre-live chatter dropped, post-start kept
+  expect(calls[0]?.summary.partial).toBe(false)
+  expect(calls[0]?.summary.startedAt).toBe(1_000) // first fire wins, not the 1_002 second fire
+  expect(calls[0]?.summary.chats).toBe(1) // pre-live chatter dropped, post-start kept
 })
 
 test('SessionManager: a flap after a mid-stream join stays partial despite the double live-start fire', async () => {
@@ -334,10 +334,10 @@ test('SessionManager: a flap after a mid-stream join stays partial despite the d
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.partial).toBe(true) // still partial — true start never seen
-  expect(calls[0]!.summary.startedAt).toBe(5_000) // join time, not the 6_012 flap restart
-  expect(calls[0]!.summary.endedAt).toBe(7_000)
-  expect(calls[0]!.summary.chats).toBe(2) // both messages kept (no reset)
+  expect(calls[0]?.summary.partial).toBe(true) // still partial — true start never seen
+  expect(calls[0]?.summary.startedAt).toBe(5_000) // join time, not the 6_012 flap restart
+  expect(calls[0]?.summary.endedAt).toBe(7_000)
+  expect(calls[0]?.summary.chats).toBe(2) // both messages kept (no reset)
 })
 
 test('SessionManager: live-end with no session is ignored', async () => {
@@ -367,8 +367,8 @@ test('SessionManager: handles the SDK firing live-start twice on a real start', 
   await Bun.sleep(60)
 
   expect(calls.length).toBe(1)
-  expect(calls[0]!.summary.chats).toBe(1)
-  expect(calls[0]!.summary.startedAt).toBe(1_000) // first fire wins, no reset
+  expect(calls[0]?.summary.chats).toBe(1)
+  expect(calls[0]?.summary.startedAt).toBe(1_000) // first fire wins, no reset
 })
 
 test('SessionManager: keeps sequential streams in the same room independent', async () => {
@@ -388,9 +388,9 @@ test('SessionManager: keeps sequential streams in the same room independent', as
   await Bun.sleep(60)
 
   expect(calls.length).toBe(2)
-  expect(calls[0]!.summary.chats).toBe(2)
-  expect(calls[0]!.summary.startedAt).toBe(1_000)
-  expect(calls[1]!.summary.chats).toBe(1) // not polluted by stream A
-  expect(calls[1]!.summary.startedAt).toBe(3_000)
-  expect(calls[1]!.summary.endedAt).toBe(4_000)
+  expect(calls[0]?.summary.chats).toBe(2)
+  expect(calls[0]?.summary.startedAt).toBe(1_000)
+  expect(calls[1]?.summary.chats).toBe(1) // not polluted by stream A
+  expect(calls[1]?.summary.startedAt).toBe(3_000)
+  expect(calls[1]?.summary.endedAt).toBe(4_000)
 })
