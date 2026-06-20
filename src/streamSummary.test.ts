@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { LaplaceEvent } from '@laplace.live/event-types'
+import { md } from '@mtcute/markdown-parser'
 
 import { SessionStats } from './streamSummary'
 
@@ -73,7 +74,7 @@ test('SessionStats accumulates a full event sequence', () => {
   expect(s.guards).toEqual({ count: 2, revenue: 396 })
   expect(s.totalRevenue).toBe(586)
   expect(s.topGifter).toEqual({ uid: 2, name: 'b', total: 30 })
-  expect(s.biggestSc).toEqual({ uid: 1, name: 'a', amount: 100 })
+  expect(s.biggestSc).toEqual({ uid: 1, name: 'a', amount: 100, message: 'yo' })
   expect(s.topChatter).toEqual({ uid: 1, name: 'a', count: 2 })
 })
 
@@ -110,7 +111,7 @@ function baseSummary(): import('./streamSummary').StreamSummary {
     guards: { count: 2, revenue: 597 },
     totalRevenue: 2_817.5,
     topGifter: { uid: 2, name: 'b', total: 680 },
-    biggestSc: { uid: 1, name: 'a', amount: 500 },
+    biggestSc: { uid: 1, name: 'a', amount: 500, message: 'gg' },
     topChatter: { uid: 1, name: 'a', count: 142 },
   }
 }
@@ -131,7 +132,7 @@ test('formatSummary renders all sections', () => {
   expect(out).toContain('弹幕 3')
   expect(out).toContain('发言 2 人')
   expect(out).toContain('最佳金主 b ¥680')
-  expect(out).toContain('最高 SC a ¥500')
+  expect(out).toContain('最高 SC a ¥500: gg')
   expect(out).toContain('最活跃 a 142 条')
 })
 
@@ -155,6 +156,24 @@ test('formatSummary marks partial sessions', () => {
   const s = baseSummary()
   s.partial = true
   expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
+})
+
+test('formatSummary applies the escaper to viewer-supplied name/message fields', () => {
+  const s = baseSummary()
+  s.biggestSc = { uid: 1, name: 'a', amount: 500, message: 'hi' }
+  const out = formatSummary(s, room, t => `⟦${t}⟧`)
+  expect(out).toContain('最高 SC ⟦a⟧ ¥500: ⟦hi⟧')
+  expect(out).toContain('最佳金主 ⟦b⟧')
+  expect(out).toContain('最活跃 ⟦a⟧')
+  expect(out).toContain('¥680') // amounts are not escaped
+})
+
+test('formatSummary output stays valid markdown even with hostile text', () => {
+  const s = baseSummary()
+  s.biggestSc = { uid: 1, name: '[a](x)', amount: 500, message: 'gg `unbalanced' }
+  s.topGifter = { uid: 2, name: '**b', total: 680 }
+  const out = formatSummary(s, room, md.escape)
+  expect(() => md(out)).not.toThrow()
 })
 
 import type { StreamSummary } from './streamSummary'

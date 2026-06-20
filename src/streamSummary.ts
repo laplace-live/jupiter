@@ -21,7 +21,7 @@ export interface StreamSummary {
   guards: { count: number; revenue: number }
   totalRevenue: number
   topGifter: { uid: number; name: string; total: number } | null
-  biggestSc: { uid: number; name: string; amount: number } | null
+  biggestSc: { uid: number; name: string; amount: number; message: string } | null
   topChatter: { uid: number; name: string; count: number } | null
 }
 
@@ -55,7 +55,7 @@ export class SessionStats {
   private guardCount = 0
   private guardRevenue = 0
   private readonly gifters = new Map<number, { name: string; total: number }>()
-  private biggestSc: { uid: number; name: string; amount: number } | null = null
+  private biggestSc: { uid: number; name: string; amount: number; message: string } | null = null
 
   constructor(startedAt: number, partial: boolean) {
     this.startedAt = startedAt
@@ -96,7 +96,12 @@ export class SessionStats {
         this.scCount++
         this.scRevenue += event.priceNormalized
         if (!this.biggestSc || event.priceNormalized > this.biggestSc.amount) {
-          this.biggestSc = { uid: event.uid, name: event.username, amount: event.priceNormalized }
+          this.biggestSc = {
+            uid: event.uid,
+            name: event.username,
+            amount: event.priceNormalized,
+            message: event.message,
+          }
         }
         break
       case 'toast':
@@ -162,8 +167,19 @@ function clock(ts: number): string {
   }).format(ts)
 }
 
-/** Render a StreamSummary as a Telegram markdown message. Pure. */
-export function formatSummary(s: StreamSummary, room: RoomConfig): string {
+/**
+ * Render a StreamSummary as a Telegram markdown message. Pure.
+ *
+ * `escapeText` is applied to every viewer-supplied field (usernames, the SC
+ * message) so a hostile value cannot inject markdown or make the downstream
+ * `md()` parser throw and suppress the whole summary. Defaults to identity for
+ * tests that don't care about escaping; production passes `md.escape`.
+ */
+export function formatSummary(
+  s: StreamSummary,
+  room: RoomConfig,
+  escapeText: (text: string) => string = text => text
+): string {
   const blocks: string[] = []
 
   let header = `#直播总结 📊 ${room.slug}`
@@ -192,9 +208,13 @@ export function formatSummary(s: StreamSummary, room: RoomConfig): string {
   blocks.push(chat.join('  ·  '))
 
   const highlights: string[] = []
-  if (s.topGifter) highlights.push(`🏆 最佳金主 ${s.topGifter.name} ¥${fmtMoney(s.topGifter.total)}`)
-  if (s.biggestSc) highlights.push(`🔥 最高 SC ${s.biggestSc.name} ¥${fmtMoney(s.biggestSc.amount)}`)
-  if (s.topChatter) highlights.push(`⚡ 最活跃 ${s.topChatter.name} ${fmtNum(s.topChatter.count)} 条`)
+  if (s.topGifter) highlights.push(`🏆 最佳金主 ${escapeText(s.topGifter.name)} ¥${fmtMoney(s.topGifter.total)}`)
+  if (s.biggestSc) {
+    highlights.push(
+      `🔥 最高 SC ${escapeText(s.biggestSc.name)} ¥${fmtMoney(s.biggestSc.amount)}: ${escapeText(s.biggestSc.message)}`
+    )
+  }
+  if (s.topChatter) highlights.push(`⚡ 最活跃 ${escapeText(s.topChatter.name)} ${fmtNum(s.topChatter.count)} 条`)
   if (highlights.length > 0) blocks.push(highlights.join('\n'))
 
   return blocks.join('\n\n')

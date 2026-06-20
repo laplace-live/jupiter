@@ -60,7 +60,7 @@ const summaryManager = new SessionManager({
   onSummary: async (roomId, summary) => {
     const room = roomMap.get(roomId)
     if (!room) return
-    const message = formatSummary(summary, room)
+    const message = formatSummary(summary, room, md.escape)
     try {
       await tg.sendText(room.telegram_announce_ch, md(message), { disableWebPreview: true })
       console.log(`[summary] Sent stream summary for ${room.slug} (${roomId})`)
