@@ -174,10 +174,6 @@ function fmtNum(n: number): string {
   return n.toLocaleString('en-US')
 }
 
-function fmtRatio(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 1 })
-}
-
 function clock(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
     timeZone: 'Asia/Shanghai',
@@ -228,7 +224,7 @@ export function formatSummary(
 
   const chat: string[] = [`💬 弹幕 ${fmtNum(s.chats)}`]
   if (s.uniqueChatters > 0) chat.push(`🗣️ 发言 ${fmtNum(s.uniqueChatters)} 人`)
-  if (s.chatsPerCapita > 0) chat.push(`📈 人均弹幕 ${fmtRatio(s.chatsPerCapita)} 条`)
+  if (s.chatsPerCapita > 0) chat.push(`📈 人均弹幕 ${fmtMoney(s.chatsPerCapita)} 条`)
   blocks.push(chat.join('\n'))
 
   const highlights: string[] = []
