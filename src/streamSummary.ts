@@ -52,6 +52,16 @@ export class SessionStats {
   readonly startedAt: number
   readonly partial: boolean
 
+  /**
+   * True once a live-start has anchored this session — either it opened the
+   * session (a real start) or it resumed the same session across a brief
+   * end→start flap. A non-partial session is anchored at birth; a partial one
+   * (opened by a stray recordable event) is not, until a real live-start
+   * promotes it. Blocks Bilibili's repeated start fires (it fires live-start
+   * twice on every start) from re-anchoring a session that is already running.
+   */
+  private liveStartBound: boolean
+
   private chats = 0
   private readonly chatters = new Map<number, { name: string; count: number }>()
   private watchedMax = 0
@@ -72,6 +82,19 @@ export class SessionStats {
   constructor(startedAt: number, partial: boolean) {
     this.startedAt = startedAt
     this.partial = partial
+    // A non-partial session was opened by a live-start; a partial one was
+    // opened by a stray recordable event and has not yet seen its start.
+    this.liveStartBound = !partial
+  }
+
+  /** Whether a live-start has already anchored this session. */
+  get hasLiveStart(): boolean {
+    return this.liveStartBound
+  }
+
+  /** Record that a live-start has now anchored this session (promotion or flap-resume). */
+  bindLiveStart(): void {
+    this.liveStartBound = true
   }
 
   /** Attribute a paid event's normalized amount to a viewer's running spend total. */
@@ -266,16 +289,26 @@ export class SessionManager {
       case 'live-start': {
         const timer = this.timers.get(roomId)
         if (timer) {
-          // ENDING -> resume: brief blip, keep counting the same session
+          // ENDING -> resume: brief blip, keep counting the same session. The
+          // restart's live-start anchors the session so its guaranteed second
+          // fire (below) can't reset it.
           clearTimeout(timer)
           this.timers.delete(roomId)
           this.pendingEndAt.delete(roomId)
-        } else if (!this.sessions.has(roomId)) {
-          // IDLE -> start a new session
+          this.sessions.get(roomId)?.bindLiveStart()
+          return
+        }
+        const session = this.sessions.get(roomId)
+        if (!session || !session.hasLiveStart) {
+          // IDLE -> start a new session, OR a partial session that a recordable
+          // event opened before this live-start (pre-live chatter, or the first
+          // event after a restart during stream prep) is now superseded by the
+          // real start. Anchor to the authoritative start time and drop the
+          // pre-start noise, instead of leaving the summary pinned to the join.
           this.sessions.set(roomId, new SessionStats(event.timestampNormalized, false))
         }
-        // else LIVE duplicate -> ignore (do not reset stats)
-        // (Bilibili fires live-start twice on a real start — the second is a no-op here.)
+        // else already anchored -> ignore (do not reset stats). Bilibili fires
+        // live-start twice on a real start; the second fire is a no-op here.
         return
       }
       case 'live-end': {

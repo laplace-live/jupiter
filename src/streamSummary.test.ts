@@ -282,6 +282,64 @@ test('SessionManager: events without a live-start produce a partial summary', as
   expect(calls[0]!.summary.startedAt).toBe(5_000)
 })
 
+test('SessionManager: a real live-start after pre-live events adopts the true start', async () => {
+  // A recordable event (pre-live chatter, or the first event after the service
+  // restarted during stream prep) creates a partial session anchored at the
+  // join time. The real live-start then arrives and must win — not be ignored
+  // as a LIVE duplicate, which would pin the summary to the join time.
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 5_000 }))
+  manager.handle(100, ev('live-start', { timestampNormalized: 5_100 }))
+  manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 5_200 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 9_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.partial).toBe(false) // the real start was observed
+  expect(calls[0]!.summary.startedAt).toBe(5_100) // live-start time, not the 5_000 join
+  expect(calls[0]!.summary.endedAt).toBe(9_000)
+  expect(calls[0]!.summary.chats).toBe(1) // pre-live chatter dropped; only counts from the real start
+})
+
+test('SessionManager: the second live-start fire does not reset a just-promoted session', async () => {
+  // Pre-live chatter opens a partial session; the real start's FIRST fire
+  // promotes it; Bilibili's SECOND fire must be a no-op, not re-anchor to its
+  // own (later) timestamp.
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 900 }))
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000, initial: true }))
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_002 })) // second fire
+  manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 1_100 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.partial).toBe(false)
+  expect(calls[0]!.summary.startedAt).toBe(1_000) // first fire wins, not the 1_002 second fire
+  expect(calls[0]!.summary.chats).toBe(1) // pre-live chatter dropped, post-start kept
+})
+
+test('SessionManager: a flap after a mid-stream join stays partial despite the double live-start fire', async () => {
+  // Bot joined mid-stream (no live-start seen -> partial). The stream then
+  // briefly flaps (end -> start) and Bilibili fires the restart's live-start
+  // twice. The session must stay partial and keep its join time — the second
+  // fire must not reset it to the flap time.
+  const { calls, manager } = makeManager()
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 5_000 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 6_000 })) // flap: brief end
+  manager.handle(100, ev('live-start', { timestampNormalized: 6_010 })) // flap restart, first fire (resume)
+  manager.handle(100, ev('live-start', { timestampNormalized: 6_012 })) // second fire (must not reset)
+  manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 6_100 }))
+  manager.handle(100, ev('live-end', { timestampNormalized: 7_000 }))
+  await Bun.sleep(60)
+
+  expect(calls.length).toBe(1)
+  expect(calls[0]!.summary.partial).toBe(true) // still partial — true start never seen
+  expect(calls[0]!.summary.startedAt).toBe(5_000) // join time, not the 6_012 flap restart
+  expect(calls[0]!.summary.endedAt).toBe(7_000)
+  expect(calls[0]!.summary.chats).toBe(2) // both messages kept (no reset)
+})
+
 test('SessionManager: live-end with no session is ignored', async () => {
   const { calls, manager } = makeManager()
   manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
