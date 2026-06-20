@@ -189,26 +189,26 @@ export function formatSummary(
   blocks.push(`🕐 时长 ${formatDuration(s.durationMs)}  ·  ${clock(s.startedAt)} → ${clock(s.endedAt)}`)
 
   const money: string[] = []
-  if (s.gifts.count > 0) money.push(`   🎁 礼物 ${fmtNum(s.gifts.count)} ¥${fmtMoney(s.gifts.revenue)}`)
-  if (s.sc.count > 0) money.push(`   💌 醒目留言 ${fmtNum(s.sc.count)} ¥${fmtMoney(s.sc.revenue)}`)
-  if (s.guards.count > 0) money.push(`   ⚓ 大航海 ${fmtNum(s.guards.count)} ¥${fmtMoney(s.guards.revenue)}`)
+  if (s.gifts.count > 0) money.push(`🎁 礼物 ${fmtNum(s.gifts.count)} - ¥${fmtMoney(s.gifts.revenue)}`)
+  if (s.sc.count > 0) money.push(`💌 醒目留言 ${fmtNum(s.sc.count)} - ¥${fmtMoney(s.sc.revenue)}`)
+  if (s.guards.count > 0) money.push(`⚓ 大航海 ${fmtNum(s.guards.count)} - ¥${fmtMoney(s.guards.revenue)}`)
   if (money.length > 0) {
     blocks.push([`💰 总收入 ¥${fmtMoney(s.totalRevenue)}`, ...money].join('\n'))
   }
 
   const audience: string[] = []
   if (s.watchedMax > 0) audience.push(`👥 看过 ${fmtNum(s.watchedMax)}`)
-  if (s.onlinePeak > 0) audience.push(`🟢 峰值在线 ${fmtNum(s.onlinePeak)}`)
+  if (s.onlinePeak > 0) audience.push(`🟢 峰值同接 ${fmtNum(s.onlinePeak)}`)
   if (s.likesMax > 0) audience.push(`👍 点赞 ${fmtNum(s.likesMax)}`)
   if (s.newFollows > 0) audience.push(`➕ 新增关注 ${fmtNum(s.newFollows)}`)
-  if (audience.length > 0) blocks.push(audience.join('  ·  '))
+  if (audience.length > 0) blocks.push(audience.join('\n'))
 
   const chat: string[] = [`💬 弹幕 ${fmtNum(s.chats)}`]
   if (s.uniqueChatters > 0) chat.push(`🗣️ 发言 ${fmtNum(s.uniqueChatters)} 人`)
-  blocks.push(chat.join('  ·  '))
+  blocks.push(chat.join('\n'))
 
   const highlights: string[] = []
-  if (s.topGifter) highlights.push(`🏆 最佳金主 ${escapeText(s.topGifter.name)} ¥${fmtMoney(s.topGifter.total)}`)
+  if (s.topGifter) highlights.push(`🏆 最佳金主 ${escapeText(s.topGifter.name)} - ¥${fmtMoney(s.topGifter.total)}`)
   if (s.biggestSc) {
     highlights.push(
       `🔥 最高 SC ${escapeText(s.biggestSc.name)} ¥${fmtMoney(s.biggestSc.amount)}: ${escapeText(s.biggestSc.message)}`
