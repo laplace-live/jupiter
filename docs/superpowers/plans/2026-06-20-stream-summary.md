@@ -884,16 +884,24 @@ In `src/index.ts`, inside the `process.on('SIGINT', ...)` handler, after the `co
   summaryManager.clearAllTimers()
 ```
 
-- [ ] **Step 6: Verify the whole suite + types + lint**
+- [ ] **Step 6: Align tsconfig, then verify the whole suite + types + lint**
+
+First make `tsc` a clean gate. The `references/` directory holds scratch reference scripts that are **not** part of the build (the Dockerfile copies only `src/`) and carry pre-existing type errors. Biome already excludes it (`biome.jsonc` `includes` has `!references`) but `tsconfig.json` does not, so a bare `bunx tsc` fails on that pre-existing noise. Add a matching `exclude` as a sibling of `compilerOptions` in `tsconfig.json` (the file currently has only a `compilerOptions` object — add the new top-level key after it):
+
+```jsonc
+  "exclude": ["node_modules", "references"]
+```
+
+Then run, in order:
 
 Run: `bun test`
 Expected: PASS — all tests in `src/utils.test.ts` and `src/streamSummary.test.ts`.
 
 Run: `bunx tsc`
-Expected: no errors, exit code 0.
+Expected: no errors, exit code 0 (`references/` is now excluded; `src/` was already clean).
 
 Run: `bun run lint`
-Expected: biome reports no errors. If it reports formatting issues, run `bun run format` and re-run `bun run lint`, then re-stage.
+Expected: Biome reports no errors. Tasks 3–4 appended `import` lines mid-file in `src/streamSummary.test.ts`; if Biome flags import organization or formatting, run `bun run format`, then re-run `bun run lint`, and re-stage.
 
 - [ ] **Step 7: Document the feature in `README.md`**
 
@@ -929,7 +937,7 @@ stream has truly ended.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/consts.ts src/index.ts README.md
+git add src/consts.ts src/index.ts tsconfig.json README.md
 git commit -m "feat: emit end-of-stream summary notifications"
 ```
 
