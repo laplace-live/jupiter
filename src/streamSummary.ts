@@ -195,6 +195,10 @@ function fmtNum(n: number): string {
   return n.toLocaleString('en-US')
 }
 
+function fmtPct(n: number): string {
+  return n.toFixed(1)
+}
+
 function clock(ts: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
     timeZone: 'Asia/Shanghai',
@@ -249,7 +253,12 @@ export function formatSummary(
   blocks.push(chat.join('\n'))
 
   if (s.topSpenders.length > 0) {
-    const lines = s.topSpenders.map((g, i) => `${i + 1}. ${escapeText(g.name)} ¥${fmtMoney(g.total)}`)
+    const lines = s.topSpenders.map((g, i) => {
+      // Each spender's share of total stream revenue (sum of all spenders ==
+      // totalRevenue by construction). Guard against a 0 total.
+      const pct = s.totalRevenue > 0 ? (g.total / s.totalRevenue) * 100 : 0
+      return `${i + 1}. ${escapeText(g.name)} ¥${fmtMoney(g.total)} (${fmtPct(pct)}%)`
+    })
     blocks.push(['🏆 金主榜', ...lines].join('\n'))
   }
   if (s.topChatters.length > 0) {

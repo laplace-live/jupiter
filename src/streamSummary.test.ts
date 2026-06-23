@@ -158,7 +158,7 @@ test('formatSummary renders all sections', () => {
   expect(out).toContain('⚓ 大航海 2 - ¥597\n💵 时薪 ¥761.5')
   expect(out).toContain('👥 看过 250\n🟢 峰值同接 80\n📊 平均同接 72\n👍 点赞 3,000\n➕ 新增关注 2')
   expect(out).toContain('💬 弹幕 3\n🗣️ 发言 2 人\n📈 人均弹幕 1.5 条')
-  expect(out).toContain('🏆 金主榜\n1. b ¥680\n2. c ¥120')
+  expect(out).toContain('🏆 金主榜\n1. b ¥680 (24.1%)\n2. c ¥120 (4.3%)')
   expect(out).not.toContain('SC 榜') // SC leaderboard removed
   expect(out).toContain('⚡ 弹幕榜\n1. a 142 条\n2. e 30 条')
 })
@@ -210,6 +210,21 @@ test('formatSummary promo link falls back to the home page when uid is missing',
   const out = formatSummary(baseSummary(), room) // room fixture has no uid
   expect(out).toContain('🔗 [更多数据](https://laplace.live)')
   expect(out).not.toContain('/stats/')
+})
+
+test('formatSummary shows each spender contribution as a percentage of total revenue', () => {
+  const out = formatSummary(baseSummary(), room)
+  // share of totalRevenue 2,817.5: b = 680/2817.5 = 24.1%, c = 120/2817.5 = 4.3%
+  expect(out).toContain('🏆 金主榜\n1. b ¥680 (24.1%)\n2. c ¥120 (4.3%)')
+})
+
+test('formatSummary spender percentage avoids divide-by-zero when total revenue is 0', () => {
+  const s = baseSummary()
+  s.totalRevenue = 0
+  s.topSpenders = [{ uid: 2, name: 'b', total: 0 }]
+  const out = formatSummary(s, room)
+  expect(out).not.toContain('NaN')
+  expect(out).toContain('1. b ¥0 (0.0%)')
 })
 
 import type { StreamSummary } from './streamSummary'
