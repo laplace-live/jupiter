@@ -1,5 +1,12 @@
 # laplace-jupiter
 
+## 1.0.10
+
+### Patch Changes
+
+- 72d0061: refine summary output
+- c92e2fa: mode summary details
+
 ## 1.0.9
 
 ### Patch Changes
