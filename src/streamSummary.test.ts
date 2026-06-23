@@ -200,6 +200,18 @@ test('formatSummary output stays valid markdown even with hostile text', () => {
   expect(() => md(out)).not.toThrow()
 })
 
+test('formatSummary appends a stats promo link using the streamer uid', () => {
+  const roomWithUid = { ...room, uid: 123456 }
+  const out = formatSummary(baseSummary(), roomWithUid)
+  expect(out).toContain('🔗 [更多数据](https://laplace.live/stats/123456)')
+})
+
+test('formatSummary promo link falls back to the home page when uid is missing', () => {
+  const out = formatSummary(baseSummary(), room) // room fixture has no uid
+  expect(out).toContain('🔗 [更多数据](https://laplace.live)')
+  expect(out).not.toContain('/stats/')
+})
+
 import type { StreamSummary } from './streamSummary'
 
 import { SessionManager } from './streamSummary'

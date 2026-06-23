@@ -257,6 +257,12 @@ export function formatSummary(
     blocks.push(['⚡ 弹幕榜', ...lines].join('\n'))
   }
 
+  // Promo: link to the streamer's stats page (falls back to the home page when
+  // the room has no uid configured). Text/URL are fully static/numeric, so no
+  // escaping is needed.
+  const statsUrl = room.uid ? `https://laplace.live/stats/${room.uid}` : 'https://laplace.live'
+  blocks.push(`🔗 [更多数据](${statsUrl})`)
+
   return blocks.join('\n\n')
 }
 
