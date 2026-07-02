@@ -83,10 +83,10 @@ let flushChain: Promise<void> = Promise.resolve()
 /** Flushes are chained: concurrent callers (interval, onSummary, shutdown) queue instead of colliding on the tmp file. */
 function flushSummaryState(): Promise<void> {
   flushChain = flushChain.then(async () => {
-    const snap = summaryManager.snapshot()
-    const roomsJson = JSON.stringify(snap.rooms)
-    if (roomsJson === lastPersistedRooms) return
     try {
+      const snap = summaryManager.snapshot()
+      const roomsJson = JSON.stringify(snap.rooms)
+      if (roomsJson === lastPersistedRooms) return
       await saveSummarySnapshot(summaryStatePath, snap)
       lastPersistedRooms = roomsJson
     } catch (err) {
@@ -397,8 +397,12 @@ async function start() {
     // Restore in-progress stream sessions persisted by a previous run
     const restored = await loadSummarySnapshot(summaryStatePath)
     if (restored) {
-      summaryManager.restore(restored)
-      console.log(`[summary] Restored ${restored.rooms.length} in-progress session(s)`)
+      try {
+        summaryManager.restore(restored)
+        console.log(`[summary] Restored ${restored.rooms.length} in-progress session(s)`)
+      } catch (err) {
+        console.error('[summary] Failed to restore summary state, starting fresh:', err)
+      }
     }
     setInterval(() => {
       void flushSummaryState()

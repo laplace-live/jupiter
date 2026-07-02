@@ -2,15 +2,17 @@ import { rename } from 'node:fs/promises'
 
 import type { ManagerSnapshot, RoomSnapshot } from './streamSummary'
 
-/** Guards only what restore() dereferences; malformed scalars can't crash restore. */
+/** Guards only the shapes restore() destructures; malformed entry contents can't crash restore. */
 function isRestorableRoom(entry: [number, RoomSnapshot]): boolean {
-  const session = entry?.[1]?.session
+  if (!Array.isArray(entry)) return false
+  const session = entry[1]?.session
   return (
-    Array.isArray(entry) &&
     session !== null &&
     typeof session === 'object' &&
     Array.isArray(session.chatters) &&
-    Array.isArray(session.spenders)
+    session.chatters.every(Array.isArray) &&
+    Array.isArray(session.spenders) &&
+    session.spenders.every(Array.isArray)
   )
 }
 

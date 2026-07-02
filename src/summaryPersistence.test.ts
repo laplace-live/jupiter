@@ -89,6 +89,22 @@ test('load returns null when a session is missing its chatters array', async () 
   expect(await loadSummarySnapshot(path)).toBeNull()
 })
 
+test('load returns null when a chatters entry is null', async () => {
+  await Bun.write(
+    path,
+    '{"version":1,"savedAt":0,"rooms":[[100,{"pendingEndAt":null,"session":{"chatters":[null],"spenders":[]}}]]}'
+  )
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
+test('load returns null when a chatters entry is an object instead of a tuple', async () => {
+  await Bun.write(
+    path,
+    '{"version":1,"savedAt":0,"rooms":[[100,{"pendingEndAt":null,"session":{"chatters":[{"uid":1,"name":"a","count":1}],"spenders":[]}}]]}'
+  )
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
 test('save leaves no tmp file behind', async () => {
   await saveSummarySnapshot(path, fixture())
   expect(await Bun.file(`${path}.tmp`).exists()).toBe(false)
