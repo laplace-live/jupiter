@@ -20,6 +20,8 @@
 - Exact constants: `STREAM_SUMMARY_FLUSH_MS = 10_000`, `STREAM_SUMMARY_REVALIDATE_MS = 300_000`; state file `bot-data/summary-state.json`; temp file is `<path>.tmp`; snapshot `version: 1`.
 - Exact marker text: `⚠️ 未观测到下播（服务中断），结束时间为最后活动时间`.
 - Every task must leave `bun test` green and `bunx tsc --noEmit` clean.
+- No `as` type assertions (CLAUDE.md). At JSON boundaries use a typed variable declaration (`const x: T = JSON.parse(...)`) plus the runtime validation the task specifies. (The pre-existing `as unknown as LaplaceEvent` in the test `ev()` helper stays.)
+- Comments sparse and terse (CLAUDE.md): inline `//` comments 1–2 lines carrying only non-obvious *why*; doc-comments (`/** */`) on declarations kept, held tight.
 
 ## File Structure
 
@@ -270,7 +272,7 @@ test('SessionStats snapshot/restore round-trips through JSON', () => {
   stats.record(ev('toast', { uid: 3, username: 'c', priceNormalized: 198 }))
 
   // Round-trip through actual JSON to prove the snapshot is JSON-safe
-  const snap = JSON.parse(JSON.stringify(stats.snapshot())) as SessionStatsSnapshot
+  const snap: SessionStatsSnapshot = JSON.parse(JSON.stringify(stats.snapshot()))
   const restored = SessionStats.restore(snap)
 
   expect(restored.lastEventAt).toBe(stats.lastEventAt)
@@ -478,7 +480,7 @@ test('SessionManager: a restored ENDING room emits after the debounce', async ()
   a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
   a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
   a.manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
-  const snap = JSON.parse(JSON.stringify(a.manager.snapshot())) as ManagerSnapshot
+  const snap: ManagerSnapshot = JSON.parse(JSON.stringify(a.manager.snapshot()))
   a.manager.clearAllTimers() // simulate shutdown before the debounce fired
 
   const b = makeManager()
@@ -655,8 +657,7 @@ Add `snapshot`, `restore`, and `finalizeStale` after `clearAllTimers`:
 
   /**
    * Rehydrate sessions from a snapshot (startup only). ENDING rooms re-arm the
-   * debounce for the full window; LIVE rooms get one revalidation window to
-   * prove the stream is still running, else a best-effort summary is emitted.
+   * debounce; LIVE rooms get one revalidation window before a best-effort summary.
    */
   restore(snap: ManagerSnapshot): void {
     for (const [roomId, room] of snap.rooms) {
@@ -833,7 +834,7 @@ export async function loadSummarySnapshot(path: string): Promise<ManagerSnapshot
   const file = Bun.file(path)
   if (!(await file.exists())) return null
   try {
-    const data = (await file.json()) as ManagerSnapshot
+    const data: ManagerSnapshot = await file.json()
     if (data?.version !== 1 || !Array.isArray(data.rooms)) {
       console.warn(`[summary] Discarding snapshot with unsupported shape/version: ${path}`)
       return null
@@ -940,10 +941,8 @@ const summaryManager = new SessionManager({
   },
 })
 
-// Persist manager state so in-progress streams survive restarts. Compares the
-// rooms payload (savedAt alone must not count as a change) and skips unchanged
-// writes. Save failures are logged and never crash the flush loop — the
-// previous on-disk snapshot stays intact thanks to the atomic rename.
+// Persist in-progress sessions across restarts. Dirty-check compares rooms only
+// (savedAt always changes); a failed save logs — the old snapshot stays intact.
 let lastPersistedRooms: string | null = null
 async function flushSummaryState(): Promise<void> {
   const snap = summaryManager.snapshot()
