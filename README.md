@@ -59,16 +59,24 @@ When a monitored stream ends, the bot posts a single summary to the room's
 chats, 大航海), and per-user highlights (top gifter, biggest super chat, most
 active chatter).
 
-Metrics are accumulated **in memory** — there is no database, and an in-progress
-stream's totals are lost if the process restarts. Bilibili fires
-`live-start`/`live-end` repeatedly and flaps on brief drops, so the summary is
-sent after a debounce window (`STREAM_SUMMARY_DEBOUNCE_MS`, default 45s) once the
-stream has truly ended.
+Metrics are accumulated in memory and snapshotted to `bot-data/summary-state.json`
+(atomic temp-file + rename; every 10s while state changes, before each summary is
+sent, and on shutdown), so in-progress streams survive restarts, upgrades, and
+crashes. A hard crash loses at most ~10s of stats; events that arrive while the
+bot is down are not counted. If a stream ends entirely during downtime, a
+best-effort summary (marked ⚠️) is still sent after startup once the room stays
+silent for the revalidation window (`STREAM_SUMMARY_REVALIDATE_MS`, default
+5 min). Bilibili fires `live-start`/`live-end` repeatedly and flaps on brief
+drops, so the summary is sent after a debounce window
+(`STREAM_SUMMARY_DEBOUNCE_MS`, default 45s) once the stream has truly ended.
 
 > **Multi-bridge note:** counts assume each room is pinned to a single `bridge`.
 > If a room is monitored by multiple bridges, duplicate events will inflate the
 > summary — pin the room to one bridge (as you already do to avoid duplicate
 > notifications).
+
+> **Docker note:** mount `bot-data/` as a volume (it already holds the Telegram
+> session) or summary state will not survive container replacement.
 
 ## Prerequisites
 
