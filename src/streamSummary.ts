@@ -49,6 +49,29 @@ export const RECORDABLE_TYPES = new Set<string>([
 /** Max entries shown in each leaderboard (金主榜 / 弹幕榜). */
 const TOP_N = 10
 
+/** JSON-safe serialized form of SessionStats (Maps as entry arrays). */
+export interface SessionStatsSnapshot {
+  startedAt: number
+  partial: boolean
+  liveStartBound: boolean
+  lastEventAt: number
+  chats: number
+  chatters: Array<[number, { name: string; count: number }]>
+  watchedMax: number
+  onlinePeak: number
+  onlineSum: number
+  onlineSamples: number
+  likesMax: number
+  newFollows: number
+  giftCount: number
+  giftRevenue: number
+  scCount: number
+  scRevenue: number
+  guardCount: number
+  guardRevenue: number
+  spenders: Array<[number, { name: string; total: number }]>
+}
+
 /** In-memory accumulator for a single live session. Pure: no I/O. */
 export class SessionStats {
   readonly startedAt: number
@@ -196,6 +219,58 @@ export class SessionStats {
       topSpenders,
       topChatters,
     }
+  }
+
+  /** Serialize every accumulator field into a JSON-safe object. */
+  snapshot(): SessionStatsSnapshot {
+    const chatters: Array<[number, { name: string; count: number }]> = []
+    for (const [uid, v] of this.chatters) chatters.push([uid, { ...v }])
+    const spenders: Array<[number, { name: string; total: number }]> = []
+    for (const [uid, v] of this.spenders) spenders.push([uid, { ...v }])
+    return {
+      startedAt: this.startedAt,
+      partial: this.partial,
+      liveStartBound: this.liveStartBound,
+      lastEventAt: this.lastActivity,
+      chats: this.chats,
+      chatters,
+      watchedMax: this.watchedMax,
+      onlinePeak: this.onlinePeak,
+      onlineSum: this.onlineSum,
+      onlineSamples: this.onlineSamples,
+      likesMax: this.likesMax,
+      newFollows: this.newFollows,
+      giftCount: this.giftCount,
+      giftRevenue: this.giftRevenue,
+      scCount: this.scCount,
+      scRevenue: this.scRevenue,
+      guardCount: this.guardCount,
+      guardRevenue: this.guardRevenue,
+      spenders,
+    }
+  }
+
+  /** Exact inverse of snapshot(): restore(x.snapshot()).finalize(t) deep-equals x.finalize(t). */
+  static restore(snap: SessionStatsSnapshot): SessionStats {
+    const s = new SessionStats(snap.startedAt, snap.partial)
+    s.liveStartBound = snap.liveStartBound
+    s.lastActivity = snap.lastEventAt
+    s.chats = snap.chats
+    for (const [uid, v] of snap.chatters) s.chatters.set(uid, { ...v })
+    s.watchedMax = snap.watchedMax
+    s.onlinePeak = snap.onlinePeak
+    s.onlineSum = snap.onlineSum
+    s.onlineSamples = snap.onlineSamples
+    s.likesMax = snap.likesMax
+    s.newFollows = snap.newFollows
+    s.giftCount = snap.giftCount
+    s.giftRevenue = snap.giftRevenue
+    s.scCount = snap.scCount
+    s.scRevenue = snap.scRevenue
+    s.guardCount = snap.guardCount
+    s.guardRevenue = snap.guardRevenue
+    for (const [uid, v] of snap.spenders) s.spenders.set(uid, { ...v })
+    return s
   }
 }
 

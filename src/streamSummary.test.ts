@@ -3,6 +3,7 @@ import type { LaplaceEvent } from '@laplace.live/event-types'
 import { md } from '@mtcute/markdown-parser'
 
 import { SessionStats } from './streamSummary'
+import type { SessionStatsSnapshot } from './streamSummary'
 
 /** Build a minimal synthetic event for tests (fields not under test are stubbed). */
 function ev(type: string, extra: Record<string, unknown>): LaplaceEvent {
@@ -457,4 +458,50 @@ test('SessionManager: keeps sequential streams in the same room independent', as
   expect(calls[1]?.summary.chats).toBe(1) // not polluted by stream A
   expect(calls[1]?.summary.startedAt).toBe(3_000)
   expect(calls[1]?.summary.endedAt).toBe(4_000)
+})
+
+test('SessionStats snapshot/restore round-trips through JSON', () => {
+  const stats = new SessionStats(1_000, false)
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 1_200 }))
+  stats.record(ev('message', { uid: 2, username: 'b', timestampNormalized: 1_300 }))
+  stats.record(ev('watched-update', { watched: 250 }))
+  stats.record(ev('online-update', { online: 50 }))
+  stats.record(ev('online-update', { online: 80 }))
+  stats.record(ev('likes-update', { likes: 3_000 }))
+  stats.record(ev('interaction', { action: 2 }))
+  stats.record(ev('gift', { uid: 2, username: 'b', coinType: 'gold', priceNormalized: 30 }))
+  stats.record(ev('superchat', { uid: 3, username: 'c', priceNormalized: 50, message: 'hi' }))
+  stats.record(ev('toast', { uid: 3, username: 'c', priceNormalized: 198 }))
+
+  // Round-trip through actual JSON to prove the snapshot is JSON-safe
+  const snap: SessionStatsSnapshot = JSON.parse(JSON.stringify(stats.snapshot()))
+  const restored = SessionStats.restore(snap)
+
+  expect(restored.lastEventAt).toBe(stats.lastEventAt)
+  expect(restored.hasLiveStart).toBe(true)
+  expect(restored.finalize(9_000)).toEqual(stats.finalize(9_000))
+})
+
+test('SessionStats restore preserves partial/anchor state and keeps accumulating', () => {
+  const stats = new SessionStats(5_000, true) // partial, not yet anchored
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 5_100 }))
+
+  const restored = SessionStats.restore(stats.snapshot())
+  expect(restored.partial).toBe(true)
+  expect(restored.hasLiveStart).toBe(false)
+
+  restored.record(ev('message', { uid: 2, username: 'b', timestampNormalized: 5_200 }))
+  const s = restored.finalize(6_000)
+  expect(s.chats).toBe(2)
+  expect(s.uniqueChatters).toBe(2)
+  expect(s.partial).toBe(true)
+})
+
+test('SessionStats restore preserves a promoted (anchored) partial session', () => {
+  const stats = new SessionStats(5_000, true)
+  stats.bindLiveStart() // promoted by a real live-start
+  const restored = SessionStats.restore(stats.snapshot())
+  expect(restored.partial).toBe(true)
+  expect(restored.hasLiveStart).toBe(true)
 })
