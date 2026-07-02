@@ -61,14 +61,14 @@ active chatter).
 
 Metrics are accumulated in memory and snapshotted to `bot-data/summary-state.json`
 (atomic temp-file + rename; every 10s while state changes, before each summary is
-sent, and on shutdown), so in-progress streams survive restarts, upgrades, and
-crashes. A hard crash loses at most ~10s of stats; events that arrive while the
-bot is down are not counted. If a stream ends entirely during downtime, a
-best-effort summary (marked ⚠️) is still sent after startup once the room stays
-silent for the revalidation window (`STREAM_SUMMARY_REVALIDATE_MS`, default
-5 min). Bilibili fires `live-start`/`live-end` repeatedly and flaps on brief
-drops, so the summary is sent after a debounce window
-(`STREAM_SUMMARY_DEBOUNCE_MS`, default 45s) once the stream has truly ended.
+sent, and on shutdown), so an in-progress stream survives restarts and upgrades as
+long as it is still live when the bot comes back — a hard crash loses at most ~10s
+of stats, and events that arrive while the bot is down are not counted. If the
+stream ends entirely while the bot is down, its summary is not sent: the stale
+session is silently replaced when the next stream starts. Bilibili fires
+`live-start`/`live-end` repeatedly and flaps on brief drops, so the summary is
+sent after a debounce window (`STREAM_SUMMARY_DEBOUNCE_MS`, default 45s) once the
+stream has truly ended.
 
 > **Multi-bridge note:** counts assume each room is pinned to a single `bridge`.
 > If a room is monitored by multiple bridges, duplicate events will inflate the

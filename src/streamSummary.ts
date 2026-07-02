@@ -2,7 +2,6 @@ import type { LaplaceEvent } from '@laplace.live/event-types'
 
 import type { RoomConfig } from './types'
 
-import { STREAM_SUMMARY_REVALIDATE_MS } from './consts'
 import { formatDuration } from './utils'
 
 export interface StreamSummary {
@@ -11,8 +10,6 @@ export interface StreamSummary {
   durationMs: number
   /** true when no live-start was observed (bot started mid-stream); numbers are a lower bound. */
   partial: boolean
-  /** true when no live-end was observed (stream ended while the bot was down); endedAt is the last event seen — a lower bound. */
-  endEstimated: boolean
   chats: number
   uniqueChatters: number
   /** chats / uniqueChatters (0 when nobody chatted). */
@@ -55,7 +52,6 @@ export interface SessionStatsSnapshot {
   startedAt: number
   partial: boolean
   liveStartBound: boolean
-  lastEventAt: number
   chats: number
   chatters: Array<[number, { name: string; count: number }]>
   watchedMax: number
@@ -101,8 +97,6 @@ export class SessionStats {
    * twice on every start) from re-anchoring a session that is already running.
    */
   private liveStartBound: boolean
-  /** Timestamp of the most recent recorded event (never below startedAt). */
-  private lastActivity: number
 
   private chats = 0
   private readonly chatters = new Map<number, { name: string; count: number }>()
@@ -127,17 +121,11 @@ export class SessionStats {
     // A non-partial session was opened by a live-start; a partial one was
     // opened by a stray recordable event and has not yet seen its start.
     this.liveStartBound = !partial
-    this.lastActivity = startedAt
   }
 
   /** Whether a live-start has already anchored this session. */
   get hasLiveStart(): boolean {
     return this.liveStartBound
-  }
-
-  /** Most recent recorded event's timestamp (startedAt when nothing has been recorded yet). */
-  get lastEventAt(): number {
-    return this.lastActivity
   }
 
   /** Record that a live-start has now anchored this session (promotion or flap-resume). */
@@ -153,7 +141,6 @@ export class SessionStats {
   }
 
   record(event: LaplaceEvent): void {
-    if (event.timestampNormalized > this.lastActivity) this.lastActivity = event.timestampNormalized
     switch (event.type) {
       case 'message': {
         this.chats++
@@ -198,7 +185,7 @@ export class SessionStats {
     }
   }
 
-  finalize(endedAt: number, endEstimated = false): StreamSummary {
+  finalize(endedAt: number): StreamSummary {
     const topChatters = [...this.chatters.entries()]
       .map(([uid, v]) => ({ uid, name: v.name, count: v.count }))
       .sort((a, b) => b.count - a.count)
@@ -217,7 +204,6 @@ export class SessionStats {
       endedAt,
       durationMs,
       partial: this.partial,
-      endEstimated,
       chats: this.chats,
       uniqueChatters: this.chatters.size,
       chatsPerCapita: this.chatters.size > 0 ? this.chats / this.chatters.size : 0,
@@ -246,7 +232,6 @@ export class SessionStats {
       startedAt: this.startedAt,
       partial: this.partial,
       liveStartBound: this.liveStartBound,
-      lastEventAt: this.lastActivity,
       chats: this.chats,
       chatters,
       watchedMax: this.watchedMax,
@@ -269,7 +254,6 @@ export class SessionStats {
   static restore(snap: SessionStatsSnapshot): SessionStats {
     const s = new SessionStats(snap.startedAt, snap.partial)
     s.liveStartBound = snap.liveStartBound
-    s.lastActivity = snap.lastEventAt
     s.chats = snap.chats
     for (const [uid, v] of snap.chatters) s.chatters.set(uid, { ...v })
     s.watchedMax = snap.watchedMax
@@ -327,7 +311,6 @@ export function formatSummary(
 
   let header = `#${room.slug} #直播总结`
   if (s.partial) header = `⚠️ 部分数据（监控中途启动）\n${header}`
-  if (s.endEstimated) header = `⚠️ 未观测到下播（服务中断），结束时间为最后活动时间\n${header}`
   blocks.push(header)
 
   blocks.push(`🕐 时长 ${formatDuration(s.durationMs)}  ·  ${clock(s.startedAt)} → ${clock(s.endedAt)}`)
@@ -380,11 +363,6 @@ export function formatSummary(
 
 export interface SessionManagerOptions {
   debounceMs: number
-  /**
-   * Silence window after restoring a LIVE room before declaring the stream
-   * ended during downtime (defaults to STREAM_SUMMARY_REVALIDATE_MS).
-   */
-  revalidateMs?: number
   onSummary: (roomId: number, summary: StreamSummary) => void | Promise<void>
 }
 
@@ -401,28 +379,15 @@ export class SessionManager {
   private readonly sessions = new Map<number, SessionStats>()
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>()
   private readonly pendingEndAt = new Map<number, number>()
-  private readonly revalidateMs: number
-  private readonly revalidateTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
   constructor(opts: SessionManagerOptions) {
     this.debounceMs = opts.debounceMs
     this.onSummary = opts.onSummary
-    this.revalidateMs = opts.revalidateMs ?? STREAM_SUMMARY_REVALIDATE_MS
-  }
-
-  /** Cancel a pending post-restore revalidation: the room has shown signs of life. */
-  private cancelRevalidation(roomId: number): void {
-    const timer = this.revalidateTimers.get(roomId)
-    if (timer) {
-      clearTimeout(timer)
-      this.revalidateTimers.delete(roomId)
-    }
   }
 
   handle(roomId: number, event: LaplaceEvent): void {
     switch (event.type) {
       case 'live-start': {
-        this.cancelRevalidation(roomId)
         const timer = this.timers.get(roomId)
         if (timer) {
           // ENDING -> resume: brief blip, keep counting the same session. The
@@ -448,7 +413,6 @@ export class SessionManager {
         return
       }
       case 'live-end': {
-        this.cancelRevalidation(roomId)
         if (!this.sessions.has(roomId)) return // IDLE -> nothing to end
         this.pendingEndAt.set(roomId, event.timestampNormalized)
         const existing = this.timers.get(roomId)
@@ -461,7 +425,6 @@ export class SessionManager {
       }
       default: {
         if (!RECORDABLE_TYPES.has(event.type)) return
-        this.cancelRevalidation(roomId)
         let session = this.sessions.get(roomId)
         if (!session) {
           // Bot started mid-stream: no live-start was seen -> partial session
@@ -478,8 +441,6 @@ export class SessionManager {
   clearAllTimers(): void {
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
-    for (const timer of this.revalidateTimers.values()) clearTimeout(timer)
-    this.revalidateTimers.clear()
   }
 
   /** Serialize all rooms' in-progress state (JSON-safe; timers are re-derived on restore). */
@@ -493,40 +454,23 @@ export class SessionManager {
 
   /**
    * Rehydrate sessions from a snapshot (startup only). ENDING rooms re-arm the
-   * debounce; LIVE rooms get one revalidation window before a best-effort summary.
+   * debounce. LIVE rooms are restored unanchored: if the stream ended while the
+   * bot was down, the next live-start supersedes the stale session (its data is
+   * dropped, no summary) instead of merging two streams into one.
    */
   restore(snap: ManagerSnapshot): void {
     for (const [roomId, room] of snap.rooms) {
-      this.sessions.set(roomId, SessionStats.restore(room.session))
       if (room.pendingEndAt !== null) {
+        this.sessions.set(roomId, SessionStats.restore(room.session))
         this.pendingEndAt.set(roomId, room.pendingEndAt)
         this.timers.set(
           roomId,
           setTimeout(() => this.finalizeRoom(roomId), this.debounceMs)
         )
       } else {
-        this.revalidateTimers.set(
-          roomId,
-          setTimeout(() => this.finalizeStale(roomId), this.revalidateMs)
-        )
+        this.sessions.set(roomId, SessionStats.restore({ ...room.session, liveStartBound: false }))
       }
     }
-  }
-
-  /**
-   * Post-restore revalidation expired with no activity: the stream ended while
-   * the bot was down. Emit a best-effort summary bounded by the last event seen.
-   */
-  private finalizeStale(roomId: number): void {
-    this.revalidateTimers.delete(roomId)
-    const session = this.sessions.get(roomId)
-    this.sessions.delete(roomId)
-    if (!session) return
-
-    const summary = session.finalize(session.lastEventAt, true)
-    Promise.resolve(this.onSummary(roomId, summary)).catch(err =>
-      console.error(`[summary] onSummary failed for room ${roomId}:`, err)
-    )
   }
 
   private finalizeRoom(roomId: number): void {

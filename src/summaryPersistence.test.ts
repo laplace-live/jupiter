@@ -27,7 +27,6 @@ function fixture(): ManagerSnapshot {
             startedAt: 1_000,
             partial: false,
             liveStartBound: true,
-            lastEventAt: 1_500,
             chats: 1,
             chatters: [[1, { name: 'a', count: 1 }]],
             watchedMax: 250,

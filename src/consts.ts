@@ -99,13 +99,5 @@ export function SUPERCHAT_TIER_EMOJI(price: number): string {
  */
 export const STREAM_SUMMARY_DEBOUNCE_MS = 45_000
 
-/**
- * After restoring a LIVE room from a persisted snapshot, how long to wait for
- * any event before declaring the stream ended during downtime and emitting a
- * best-effort summary. Generous headroom over Bilibili's periodic
- * online/watched heartbeats plus bridge reconnect time.
- */
-export const STREAM_SUMMARY_REVALIDATE_MS = 300_000
-
 /** Persist stream-summary state at most this often (the write is skipped when nothing changed). */
 export const STREAM_SUMMARY_FLUSH_MS = 10_000

@@ -102,27 +102,6 @@ test('SessionStats with no activity yields empty summary', () => {
   expect(s.topChatters).toEqual([])
 })
 
-test('SessionStats tracks the latest event timestamp as lastEventAt', () => {
-  const stats = new SessionStats(1_000, false)
-  expect(stats.lastEventAt).toBe(1_000) // starts at startedAt
-
-  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 5_000 }))
-  expect(stats.lastEventAt).toBe(5_000)
-
-  // an out-of-order older event must not move it backwards
-  stats.record(ev('online-update', { online: 10, timestampNormalized: 4_000 }))
-  expect(stats.lastEventAt).toBe(5_000)
-
-  stats.record(ev('likes-update', { likes: 3, timestampNormalized: 6_500 }))
-  expect(stats.lastEventAt).toBe(6_500)
-})
-
-test('finalize marks endEstimated only when requested', () => {
-  const stats = new SessionStats(1_000, false)
-  expect(stats.finalize(2_000).endEstimated).toBe(false)
-  expect(stats.finalize(2_000, true).endEstimated).toBe(true)
-})
-
 import type { RoomConfig } from './types'
 
 import { formatSummary } from './streamSummary'
@@ -135,7 +114,6 @@ function baseSummary(): import('./streamSummary').StreamSummary {
     endedAt: 13_320_000,
     durationMs: 13_320_000,
     partial: false,
-    endEstimated: false,
     chats: 3,
     uniqueChatters: 2,
     chatsPerCapita: 1.5,
@@ -208,21 +186,6 @@ test('formatSummary marks partial sessions', () => {
   expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
 })
 
-test('formatSummary renders the endEstimated marker', () => {
-  const s = baseSummary()
-  s.endEstimated = true
-  expect(formatSummary(s, room)).toContain('⚠️ 未观测到下播（服务中断），结束时间为最后活动时间')
-})
-
-test('formatSummary renders both partial and endEstimated markers together', () => {
-  const s = baseSummary()
-  s.partial = true
-  s.endEstimated = true
-  const out = formatSummary(s, room)
-  expect(out).toContain('⚠️ 部分数据（监控中途启动）')
-  expect(out).toContain('⚠️ 未观测到下播（服务中断），结束时间为最后活动时间')
-})
-
 test('formatSummary applies the escaper to viewer-supplied name fields', () => {
   const s = baseSummary()
   const out = formatSummary(s, room, t => `⟦${t}⟧`)
@@ -274,7 +237,6 @@ function makeManager() {
   const calls: Array<{ roomId: number; summary: StreamSummary }> = []
   const manager = new SessionManager({
     debounceMs: 30,
-    revalidateMs: 30,
     onSummary: (roomId, summary) => {
       calls.push({ roomId, summary })
     },
@@ -480,7 +442,6 @@ test('SessionStats snapshot/restore round-trips through JSON', () => {
   const snap: SessionStatsSnapshot = JSON.parse(JSON.stringify(stats.snapshot()))
   const restored = SessionStats.restore(snap)
 
-  expect(restored.lastEventAt).toBe(stats.lastEventAt)
   expect(restored.hasLiveStart).toBe(true)
   expect(restored.finalize(9_000)).toEqual(stats.finalize(9_000))
 })
@@ -525,7 +486,6 @@ test('SessionManager: snapshot captures LIVE and ENDING rooms', () => {
   const room200 = snap.rooms.find(([id]) => id === 200)?.[1]
   expect(room100?.pendingEndAt).toBeNull()
   expect(room100?.session.chats).toBe(1)
-  expect(room100?.session.lastEventAt).toBe(1_100)
   expect(room200?.pendingEndAt).toBe(3_000)
 })
 
@@ -543,7 +503,6 @@ test('SessionManager: a restored ENDING room emits after the debounce', async ()
 
   expect(b.calls.length).toBe(1)
   expect(b.calls[0]?.summary.endedAt).toBe(2_000) // the observed live-end, not wall clock
-  expect(b.calls[0]?.summary.endEstimated).toBe(false)
   expect(b.calls[0]?.summary.chats).toBe(1)
 })
 
@@ -567,53 +526,43 @@ test('SessionManager: a restored ENDING room can still flap-resume', async () =>
   expect(b.calls[0]?.summary.endedAt).toBe(3_000)
 })
 
-test('SessionManager: a restored LIVE room with no activity emits a best-effort summary', async () => {
+test('SessionManager: a restored LIVE session keeps counting across the restart', async () => {
   const a = makeManager()
   a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
   a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
-  const snap = a.manager.snapshot()
-  a.manager.clearAllTimers()
-
-  const b = makeManager()
-  b.manager.restore(snap)
-  await Bun.sleep(60) // past revalidateMs with no events
-
-  expect(b.calls.length).toBe(1)
-  expect(b.calls[0]?.summary.endEstimated).toBe(true)
-  expect(b.calls[0]?.summary.endedAt).toBe(1_500) // lastEventAt, not wall clock
-  expect(b.calls[0]?.summary.chats).toBe(1)
-})
-
-test('SessionManager: any event cancels revalidation and the stream continues', async () => {
-  const a = makeManager()
-  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
-  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
-  const snap = a.manager.snapshot()
+  const snap: ManagerSnapshot = JSON.parse(JSON.stringify(a.manager.snapshot()))
   a.manager.clearAllTimers()
 
   const b = makeManager()
   b.manager.restore(snap)
   b.manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 5_000 }))
-  await Bun.sleep(60) // past revalidateMs — must NOT fire, the room proved it is live
-  expect(b.calls.length).toBe(0)
-
   b.manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
   await Bun.sleep(60)
+
   expect(b.calls.length).toBe(1)
-  expect(b.calls[0]?.summary.endEstimated).toBe(false)
   expect(b.calls[0]?.summary.chats).toBe(2) // pre-restart + post-restart merged
   expect(b.calls[0]?.summary.startedAt).toBe(1_000)
+  expect(b.calls[0]?.summary.endedAt).toBe(6_000)
 })
 
-test('SessionManager: clearAllTimers cancels revalidation timers too', async () => {
+test('SessionManager: a restored LIVE session is superseded by the next live-start', async () => {
   const a = makeManager()
   a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
   const snap = a.manager.snapshot()
   a.manager.clearAllTimers()
 
   const b = makeManager()
   b.manager.restore(snap)
-  b.manager.clearAllTimers()
+  // Stream A ended during downtime; stream B starts now (Bilibili double-fires live-start)
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 9_000 }))
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 9_002 }))
+  b.manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 9_100 }))
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 10_000 }))
   await Bun.sleep(60)
-  expect(b.calls.length).toBe(0)
+
+  expect(b.calls.length).toBe(1) // stale session A produced no summary
+  expect(b.calls[0]?.summary.startedAt).toBe(9_000) // B anchored at its own start, first fire wins
+  expect(b.calls[0]?.summary.chats).toBe(1) // A's chat dropped, not merged
+  expect(b.calls[0]?.summary.partial).toBe(false)
 })
