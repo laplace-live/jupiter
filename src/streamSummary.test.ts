@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test'
 import type { LaplaceEvent } from '@laplace.live/event-types'
 import { md } from '@mtcute/markdown-parser'
 
-import { SessionStats } from './streamSummary'
 import type { SessionStatsSnapshot } from './streamSummary'
+
+import { SessionStats } from './streamSummary'
 
 /** Build a minimal synthetic event for tests (fields not under test are stubbed). */
 function ev(type: string, extra: Record<string, unknown>): LaplaceEvent {
