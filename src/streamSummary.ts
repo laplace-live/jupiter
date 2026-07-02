@@ -61,6 +61,8 @@ export class SessionStats {
    * twice on every start) from re-anchoring a session that is already running.
    */
   private liveStartBound: boolean
+  /** Timestamp of the most recent recorded event (never below startedAt). */
+  private lastActivity: number
 
   private chats = 0
   private readonly chatters = new Map<number, { name: string; count: number }>()
@@ -85,11 +87,17 @@ export class SessionStats {
     // A non-partial session was opened by a live-start; a partial one was
     // opened by a stray recordable event and has not yet seen its start.
     this.liveStartBound = !partial
+    this.lastActivity = startedAt
   }
 
   /** Whether a live-start has already anchored this session. */
   get hasLiveStart(): boolean {
     return this.liveStartBound
+  }
+
+  /** Most recent recorded event's timestamp (startedAt when nothing has been recorded yet). */
+  get lastEventAt(): number {
+    return this.lastActivity
   }
 
   /** Record that a live-start has now anchored this session (promotion or flap-resume). */
@@ -105,6 +113,7 @@ export class SessionStats {
   }
 
   record(event: LaplaceEvent): void {
+    if (event.timestampNormalized > this.lastActivity) this.lastActivity = event.timestampNormalized
     switch (event.type) {
       case 'message': {
         this.chats++

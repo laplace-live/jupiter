@@ -100,6 +100,21 @@ test('SessionStats with no activity yields empty summary', () => {
   expect(s.topChatters).toEqual([])
 })
 
+test('SessionStats tracks the latest event timestamp as lastEventAt', () => {
+  const stats = new SessionStats(1_000, false)
+  expect(stats.lastEventAt).toBe(1_000) // starts at startedAt
+
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 5_000 }))
+  expect(stats.lastEventAt).toBe(5_000)
+
+  // an out-of-order older event must not move it backwards
+  stats.record(ev('online-update', { online: 10, timestampNormalized: 4_000 }))
+  expect(stats.lastEventAt).toBe(5_000)
+
+  stats.record(ev('likes-update', { likes: 3, timestampNormalized: 6_500 }))
+  expect(stats.lastEventAt).toBe(6_500)
+})
+
 import type { RoomConfig } from './types'
 
 import { formatSummary } from './streamSummary'
