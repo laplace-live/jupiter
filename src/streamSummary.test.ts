@@ -115,6 +115,12 @@ test('SessionStats tracks the latest event timestamp as lastEventAt', () => {
   expect(stats.lastEventAt).toBe(6_500)
 })
 
+test('finalize marks endEstimated only when requested', () => {
+  const stats = new SessionStats(1_000, false)
+  expect(stats.finalize(2_000).endEstimated).toBe(false)
+  expect(stats.finalize(2_000, true).endEstimated).toBe(true)
+})
+
 import type { RoomConfig } from './types'
 
 import { formatSummary } from './streamSummary'
@@ -127,6 +133,7 @@ function baseSummary(): import('./streamSummary').StreamSummary {
     endedAt: 13_320_000,
     durationMs: 13_320_000,
     partial: false,
+    endEstimated: false,
     chats: 3,
     uniqueChatters: 2,
     chatsPerCapita: 1.5,
@@ -197,6 +204,21 @@ test('formatSummary marks partial sessions', () => {
   const s = baseSummary()
   s.partial = true
   expect(formatSummary(s, room)).toContain('⚠️ 部分数据')
+})
+
+test('formatSummary renders the endEstimated marker', () => {
+  const s = baseSummary()
+  s.endEstimated = true
+  expect(formatSummary(s, room)).toContain('⚠️ 未观测到下播（服务中断），结束时间为最后活动时间')
+})
+
+test('formatSummary renders both partial and endEstimated markers together', () => {
+  const s = baseSummary()
+  s.partial = true
+  s.endEstimated = true
+  const out = formatSummary(s, room)
+  expect(out).toContain('⚠️ 部分数据（监控中途启动）')
+  expect(out).toContain('⚠️ 未观测到下播（服务中断），结束时间为最后活动时间')
 })
 
 test('formatSummary applies the escaper to viewer-supplied name fields', () => {

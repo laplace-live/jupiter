@@ -10,6 +10,8 @@ export interface StreamSummary {
   durationMs: number
   /** true when no live-start was observed (bot started mid-stream); numbers are a lower bound. */
   partial: boolean
+  /** true when no live-end was observed (stream ended while the bot was down); endedAt is the last event seen — a lower bound. */
+  endEstimated: boolean
   chats: number
   uniqueChatters: number
   /** chats / uniqueChatters (0 when nobody chatted). */
@@ -158,7 +160,7 @@ export class SessionStats {
     }
   }
 
-  finalize(endedAt: number): StreamSummary {
+  finalize(endedAt: number, endEstimated = false): StreamSummary {
     const topChatters = [...this.chatters.entries()]
       .map(([uid, v]) => ({ uid, name: v.name, count: v.count }))
       .sort((a, b) => b.count - a.count)
@@ -177,6 +179,7 @@ export class SessionStats {
       endedAt,
       durationMs,
       partial: this.partial,
+      endEstimated,
       chats: this.chats,
       uniqueChatters: this.chatters.size,
       chatsPerCapita: this.chatters.size > 0 ? this.chats / this.chatters.size : 0,
@@ -234,6 +237,7 @@ export function formatSummary(
 
   let header = `#${room.slug} #直播总结`
   if (s.partial) header = `⚠️ 部分数据（监控中途启动）\n${header}`
+  if (s.endEstimated) header = `⚠️ 未观测到下播（服务中断），结束时间为最后活动时间\n${header}`
   blocks.push(header)
 
   blocks.push(`🕐 时长 ${formatDuration(s.durationMs)}  ·  ${clock(s.startedAt)} → ${clock(s.endedAt)}`)
