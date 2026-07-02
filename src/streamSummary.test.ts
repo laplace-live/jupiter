@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { LaplaceEvent } from '@laplace.live/event-types'
 import { md } from '@mtcute/markdown-parser'
 
-import type { SessionStatsSnapshot } from './streamSummary'
+import type { ManagerSnapshot, SessionStatsSnapshot } from './streamSummary'
 
 import { SessionStats } from './streamSummary'
 
@@ -274,6 +274,7 @@ function makeManager() {
   const calls: Array<{ roomId: number; summary: StreamSummary }> = []
   const manager = new SessionManager({
     debounceMs: 30,
+    revalidateMs: 30,
     onSummary: (roomId, summary) => {
       calls.push({ roomId, summary })
     },
@@ -505,4 +506,114 @@ test('SessionStats restore preserves a promoted (anchored) partial session', () 
   const restored = SessionStats.restore(stats.snapshot())
   expect(restored.partial).toBe(true)
   expect(restored.hasLiveStart).toBe(true)
+})
+
+test('SessionManager: snapshot captures LIVE and ENDING rooms', () => {
+  const { manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  manager.handle(200, ev('live-start', { timestampNormalized: 2_000 }))
+  manager.handle(200, ev('live-end', { timestampNormalized: 3_000 }))
+
+  const snap = manager.snapshot()
+  manager.clearAllTimers()
+
+  expect(snap.version).toBe(1)
+  expect(typeof snap.savedAt).toBe('number')
+  expect(snap.rooms.length).toBe(2)
+  const room100 = snap.rooms.find(([id]) => id === 100)?.[1]
+  const room200 = snap.rooms.find(([id]) => id === 200)?.[1]
+  expect(room100?.pendingEndAt).toBeNull()
+  expect(room100?.session.chats).toBe(1)
+  expect(room100?.session.lastEventAt).toBe(1_100)
+  expect(room200?.pendingEndAt).toBe(3_000)
+})
+
+test('SessionManager: a restored ENDING room emits after the debounce', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  a.manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  const snap: ManagerSnapshot = JSON.parse(JSON.stringify(a.manager.snapshot()))
+  a.manager.clearAllTimers() // simulate shutdown before the debounce fired
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  await Bun.sleep(60)
+
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.endedAt).toBe(2_000) // the observed live-end, not wall clock
+  expect(b.calls[0]?.summary.endEstimated).toBe(false)
+  expect(b.calls[0]?.summary.chats).toBe(1)
+})
+
+test('SessionManager: a restored ENDING room can still flap-resume', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 2_010 })) // resume cancels the re-armed debounce
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(0)
+
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 3_000 }))
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.startedAt).toBe(1_000)
+  expect(b.calls[0]?.summary.endedAt).toBe(3_000)
+})
+
+test('SessionManager: a restored LIVE room with no activity emits a best-effort summary', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  await Bun.sleep(60) // past revalidateMs with no events
+
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.endEstimated).toBe(true)
+  expect(b.calls[0]?.summary.endedAt).toBe(1_500) // lastEventAt, not wall clock
+  expect(b.calls[0]?.summary.chats).toBe(1)
+})
+
+test('SessionManager: any event cancels revalidation and the stream continues', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  b.manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 5_000 }))
+  await Bun.sleep(60) // past revalidateMs — must NOT fire, the room proved it is live
+  expect(b.calls.length).toBe(0)
+
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.endEstimated).toBe(false)
+  expect(b.calls[0]?.summary.chats).toBe(2) // pre-restart + post-restart merged
+  expect(b.calls[0]?.summary.startedAt).toBe(1_000)
+})
+
+test('SessionManager: clearAllTimers cancels revalidation timers too', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  b.manager.clearAllTimers()
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(0)
 })

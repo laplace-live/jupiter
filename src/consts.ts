@@ -98,3 +98,11 @@ export function SUPERCHAT_TIER_EMOJI(price: number): string {
  * collapses those bursts into a single logical stream and a single summary.
  */
 export const STREAM_SUMMARY_DEBOUNCE_MS = 45_000
+
+/**
+ * After restoring a LIVE room from a persisted snapshot, how long to wait for
+ * any event before declaring the stream ended during downtime and emitting a
+ * best-effort summary. Generous headroom over Bilibili's periodic
+ * online/watched heartbeats plus bridge reconnect time.
+ */
+export const STREAM_SUMMARY_REVALIDATE_MS = 300_000
