@@ -543,6 +543,7 @@ test('SessionManager: a restored LIVE session keeps counting across the restart'
   expect(b.calls[0]?.summary.chats).toBe(2) // pre-restart + post-restart merged
   expect(b.calls[0]?.summary.startedAt).toBe(1_000)
   expect(b.calls[0]?.summary.endedAt).toBe(6_000)
+  expect(b.calls[0]?.summary.partial).toBe(false) // non-partial despite the cleared anchor
 })
 
 test('SessionManager: a restored LIVE session is superseded by the next live-start', async () => {

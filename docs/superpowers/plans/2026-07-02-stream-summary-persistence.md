@@ -1,5 +1,11 @@
 # Stream Summary Persistence Implementation Plan
 
+> **Superseded in part (2026-07-02):** the missed-end revalidation subsystem this
+> plan builds (revalidateMs, finalizeStale, endEstimated, lastEventAt — Tasks 1,
+> 2, and parts of 4/6) was descoped after implementation. See the Amendment in
+> `docs/superpowers/specs/2026-07-02-stream-summary-persistence-design.md`.
+> Retained unmodified below as the historical execution record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** In-progress stream-summary state survives process restarts (upgrades, container replacement, crashes) via an atomically-written JSON snapshot, and a stream that ends while the bot is down still gets a best-effort summary.
