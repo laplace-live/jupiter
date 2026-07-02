@@ -69,6 +69,26 @@ test('load returns null for an unsupported version', async () => {
   expect(await loadSummarySnapshot(path)).toBeNull()
 })
 
+test('load returns null when rooms is not an array', async () => {
+  await Bun.write(path, '{"version":1,"savedAt":0,"rooms":{}}')
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
+test('load returns null for a room entry with a null value', async () => {
+  await Bun.write(path, '{"version":1,"savedAt":0,"rooms":[[100,null]]}')
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
+test('load returns null when a room session is null', async () => {
+  await Bun.write(path, '{"version":1,"savedAt":0,"rooms":[[100,{"pendingEndAt":null,"session":null}]]}')
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
+test('load returns null when a session is missing its chatters array', async () => {
+  await Bun.write(path, '{"version":1,"savedAt":0,"rooms":[[100,{"pendingEndAt":null,"session":{"spenders":[]}}]]}')
+  expect(await loadSummarySnapshot(path)).toBeNull()
+})
+
 test('save leaves no tmp file behind', async () => {
   await saveSummarySnapshot(path, fixture())
   expect(await Bun.file(`${path}.tmp`).exists()).toBe(false)

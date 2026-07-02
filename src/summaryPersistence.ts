@@ -1,6 +1,18 @@
 import { rename } from 'node:fs/promises'
 
-import type { ManagerSnapshot } from './streamSummary'
+import type { ManagerSnapshot, RoomSnapshot } from './streamSummary'
+
+/** Guards only what restore() dereferences; malformed scalars can't crash restore. */
+function isRestorableRoom(entry: [number, RoomSnapshot]): boolean {
+  const session = entry?.[1]?.session
+  return (
+    Array.isArray(entry) &&
+    session !== null &&
+    typeof session === 'object' &&
+    Array.isArray(session.chatters) &&
+    Array.isArray(session.spenders)
+  )
+}
 
 /**
  * Read a previously saved summary snapshot. Returns null (never throws) when
@@ -12,7 +24,7 @@ export async function loadSummarySnapshot(path: string): Promise<ManagerSnapshot
   if (!(await file.exists())) return null
   try {
     const data: ManagerSnapshot = await file.json()
-    if (data?.version !== 1 || !Array.isArray(data.rooms)) {
+    if (data?.version !== 1 || !Array.isArray(data.rooms) || !data.rooms.every(isRestorableRoom)) {
       console.warn(`[summary] Discarding snapshot with unsupported shape/version: ${path}`)
       return null
     }

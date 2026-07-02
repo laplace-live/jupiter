@@ -81,6 +81,7 @@ export interface RoomSnapshot {
 
 /** JSON-safe serialized form of SessionManager (timers are re-derived on restore). */
 export interface ManagerSnapshot {
+  /** Bump when the snapshot shape changes — old files are discarded on load. */
   version: 1
   savedAt: number
   rooms: Array<[number, RoomSnapshot]>

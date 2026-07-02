@@ -79,16 +79,21 @@ const summaryManager = new SessionManager({
 // Persist in-progress sessions across restarts. Dirty-check compares rooms only
 // (savedAt always changes); a failed save logs — the old snapshot stays intact.
 let lastPersistedRooms: string | null = null
-async function flushSummaryState(): Promise<void> {
-  const snap = summaryManager.snapshot()
-  const roomsJson = JSON.stringify(snap.rooms)
-  if (roomsJson === lastPersistedRooms) return
-  try {
-    await saveSummarySnapshot(summaryStatePath, snap)
-    lastPersistedRooms = roomsJson
-  } catch (err) {
-    console.error('[summary] Failed to persist summary state:', err)
-  }
+let flushChain: Promise<void> = Promise.resolve()
+/** Flushes are chained: concurrent callers (interval, onSummary, shutdown) queue instead of colliding on the tmp file. */
+function flushSummaryState(): Promise<void> {
+  flushChain = flushChain.then(async () => {
+    const snap = summaryManager.snapshot()
+    const roomsJson = JSON.stringify(snap.rooms)
+    if (roomsJson === lastPersistedRooms) return
+    try {
+      await saveSummarySnapshot(summaryStatePath, snap)
+      lastPersistedRooms = roomsJson
+    } catch (err) {
+      console.error('[summary] Failed to persist summary state:', err)
+    }
+  })
+  return flushChain
 }
 
 // Create event bridge clients
@@ -427,7 +432,10 @@ async function start() {
 }
 
 // Graceful shutdown (SIGINT from a terminal, SIGTERM from Docker)
+let shuttingDown = false
 async function shutdown() {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log('\nShutting down...')
 
   // Persist in-progress sessions, then cancel pending timers — restore()
