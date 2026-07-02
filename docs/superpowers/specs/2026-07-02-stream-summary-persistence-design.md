@@ -1,10 +1,33 @@
 # Stream Summary Persistence — Design
 
 **Date:** 2026-07-02
-**Status:** Approved
+**Status:** Approved (amended — see Amendment below)
 **Component:** `laplace-jupiter`
 **Supersedes:** the "No database, no persistence" decision in
 `2026-06-20-stream-summary-design.md`
+
+## Amendment (2026-07-02): missed-end revalidation descoped
+
+After implementation, the revalidation subsystem (5-min post-restore silence
+timer, `finalizeStale`, `endEstimated` flag/marker, `lastEventAt` tracking) was
+judged not worth its complexity and removed. This reverses the earlier "never
+lose a summary" choice:
+
+- **New accepted limitation:** a stream that ends entirely while the bot is
+  down produces **no summary**. Its restored session is kept but **unanchored**
+  (`liveStartBound` cleared on restore of LIVE rooms), so the next stream's
+  `live-start` *supersedes* it — stale data is silently dropped instead of
+  merging two streams into one corrupted summary.
+- Still-live streams across a restart, and rooms restored in the ENDING state
+  (debounce re-armed), behave exactly as originally specified.
+- A Redis-backed store was considered as an alternative simplification and
+  rejected: the storage backend is the thinnest layer (~50 lines); the
+  complexity lives in serialization + restore semantics, which any backend
+  needs. Optional Redis would also drop persistence for no-Redis deployments
+  and add an external dependency, while `bot-data/` is already volume-mounted.
+
+Sections below describing revalidation, `endEstimated`, and `lastEventAt` are
+retained for history but no longer current.
 
 ## Goal
 
