@@ -47,6 +47,42 @@ export const RECORDABLE_TYPES = new Set<string>([
 /** Max entries shown in each leaderboard (金主榜 / 弹幕榜). */
 const TOP_N = 10
 
+/** JSON-safe serialized form of SessionStats (Maps as entry arrays). */
+export interface SessionStatsSnapshot {
+  startedAt: number
+  partial: boolean
+  liveStartBound: boolean
+  chats: number
+  chatters: Array<[number, { name: string; count: number }]>
+  watchedMax: number
+  onlinePeak: number
+  onlineSum: number
+  onlineSamples: number
+  likesMax: number
+  newFollows: number
+  giftCount: number
+  giftRevenue: number
+  scCount: number
+  scRevenue: number
+  guardCount: number
+  guardRevenue: number
+  spenders: Array<[number, { name: string; total: number }]>
+}
+
+/** One room's persisted state: its session plus the pending end (ENDING state) if any. */
+export interface RoomSnapshot {
+  pendingEndAt: number | null
+  session: SessionStatsSnapshot
+}
+
+/** JSON-safe serialized form of SessionManager (timers are re-derived on restore). */
+export interface ManagerSnapshot {
+  /** Bump when the snapshot shape changes — old files are discarded on load. */
+  version: 1
+  savedAt: number
+  rooms: Array<[number, RoomSnapshot]>
+}
+
 /** In-memory accumulator for a single live session. Pure: no I/O. */
 export class SessionStats {
   readonly startedAt: number
@@ -184,6 +220,56 @@ export class SessionStats {
       topSpenders,
       topChatters,
     }
+  }
+
+  /** Serialize every accumulator field into a JSON-safe object. */
+  snapshot(): SessionStatsSnapshot {
+    const chatters: Array<[number, { name: string; count: number }]> = []
+    for (const [uid, v] of this.chatters) chatters.push([uid, { ...v }])
+    const spenders: Array<[number, { name: string; total: number }]> = []
+    for (const [uid, v] of this.spenders) spenders.push([uid, { ...v }])
+    return {
+      startedAt: this.startedAt,
+      partial: this.partial,
+      liveStartBound: this.liveStartBound,
+      chats: this.chats,
+      chatters,
+      watchedMax: this.watchedMax,
+      onlinePeak: this.onlinePeak,
+      onlineSum: this.onlineSum,
+      onlineSamples: this.onlineSamples,
+      likesMax: this.likesMax,
+      newFollows: this.newFollows,
+      giftCount: this.giftCount,
+      giftRevenue: this.giftRevenue,
+      scCount: this.scCount,
+      scRevenue: this.scRevenue,
+      guardCount: this.guardCount,
+      guardRevenue: this.guardRevenue,
+      spenders,
+    }
+  }
+
+  /** Exact inverse of snapshot(): restore(x.snapshot()).finalize(t) deep-equals x.finalize(t). */
+  static restore(snap: SessionStatsSnapshot): SessionStats {
+    const s = new SessionStats(snap.startedAt, snap.partial)
+    s.liveStartBound = snap.liveStartBound
+    s.chats = snap.chats
+    for (const [uid, v] of snap.chatters) s.chatters.set(uid, { ...v })
+    s.watchedMax = snap.watchedMax
+    s.onlinePeak = snap.onlinePeak
+    s.onlineSum = snap.onlineSum
+    s.onlineSamples = snap.onlineSamples
+    s.likesMax = snap.likesMax
+    s.newFollows = snap.newFollows
+    s.giftCount = snap.giftCount
+    s.giftRevenue = snap.giftRevenue
+    s.scCount = snap.scCount
+    s.scRevenue = snap.scRevenue
+    s.guardCount = snap.guardCount
+    s.guardRevenue = snap.guardRevenue
+    for (const [uid, v] of snap.spenders) s.spenders.set(uid, { ...v })
+    return s
   }
 }
 
@@ -351,10 +437,40 @@ export class SessionManager {
     }
   }
 
-  /** Cancel all pending debounce timers (e.g. on shutdown). */
+  /** Cancel all pending timers (e.g. on shutdown). */
   clearAllTimers(): void {
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
+  }
+
+  /** Serialize all rooms' in-progress state (JSON-safe; timers are re-derived on restore). */
+  snapshot(): ManagerSnapshot {
+    const rooms: Array<[number, RoomSnapshot]> = []
+    for (const [roomId, session] of this.sessions) {
+      rooms.push([roomId, { pendingEndAt: this.pendingEndAt.get(roomId) ?? null, session: session.snapshot() }])
+    }
+    return { version: 1, savedAt: Date.now(), rooms }
+  }
+
+  /**
+   * Rehydrate sessions from a snapshot (startup only). ENDING rooms re-arm the
+   * debounce. LIVE rooms are restored unanchored: if the stream ended while the
+   * bot was down, the next live-start supersedes the stale session (its data is
+   * dropped, no summary) instead of merging two streams into one.
+   */
+  restore(snap: ManagerSnapshot): void {
+    for (const [roomId, room] of snap.rooms) {
+      if (room.pendingEndAt !== null) {
+        this.sessions.set(roomId, SessionStats.restore(room.session))
+        this.pendingEndAt.set(roomId, room.pendingEndAt)
+        this.timers.set(
+          roomId,
+          setTimeout(() => this.finalizeRoom(roomId), this.debounceMs)
+        )
+      } else {
+        this.sessions.set(roomId, SessionStats.restore({ ...room.session, liveStartBound: false }))
+      }
+    }
   }
 
   private finalizeRoom(roomId: number): void {

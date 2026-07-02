@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test'
 import type { LaplaceEvent } from '@laplace.live/event-types'
 import { md } from '@mtcute/markdown-parser'
 
+import type { ManagerSnapshot, SessionStatsSnapshot } from './streamSummary'
+
 import { SessionStats } from './streamSummary'
 
 /** Build a minimal synthetic event for tests (fields not under test are stubbed). */
@@ -420,4 +422,148 @@ test('SessionManager: keeps sequential streams in the same room independent', as
   expect(calls[1]?.summary.chats).toBe(1) // not polluted by stream A
   expect(calls[1]?.summary.startedAt).toBe(3_000)
   expect(calls[1]?.summary.endedAt).toBe(4_000)
+})
+
+test('SessionStats snapshot/restore round-trips through JSON', () => {
+  const stats = new SessionStats(1_000, false)
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 1_200 }))
+  stats.record(ev('message', { uid: 2, username: 'b', timestampNormalized: 1_300 }))
+  stats.record(ev('watched-update', { watched: 250 }))
+  stats.record(ev('online-update', { online: 50 }))
+  stats.record(ev('online-update', { online: 80 }))
+  stats.record(ev('likes-update', { likes: 3_000 }))
+  stats.record(ev('interaction', { action: 2 }))
+  stats.record(ev('gift', { uid: 2, username: 'b', coinType: 'gold', priceNormalized: 30 }))
+  stats.record(ev('superchat', { uid: 3, username: 'c', priceNormalized: 50, message: 'hi' }))
+  stats.record(ev('toast', { uid: 3, username: 'c', priceNormalized: 198 }))
+
+  // Round-trip through actual JSON to prove the snapshot is JSON-safe
+  const snap: SessionStatsSnapshot = JSON.parse(JSON.stringify(stats.snapshot()))
+  const restored = SessionStats.restore(snap)
+
+  expect(restored.hasLiveStart).toBe(true)
+  expect(restored.finalize(9_000)).toEqual(stats.finalize(9_000))
+})
+
+test('SessionStats restore preserves partial/anchor state and keeps accumulating', () => {
+  const stats = new SessionStats(5_000, true) // partial, not yet anchored
+  stats.record(ev('message', { uid: 1, username: 'a', timestampNormalized: 5_100 }))
+
+  const restored = SessionStats.restore(stats.snapshot())
+  expect(restored.partial).toBe(true)
+  expect(restored.hasLiveStart).toBe(false)
+
+  restored.record(ev('message', { uid: 2, username: 'b', timestampNormalized: 5_200 }))
+  const s = restored.finalize(6_000)
+  expect(s.chats).toBe(2)
+  expect(s.uniqueChatters).toBe(2)
+  expect(s.partial).toBe(true)
+})
+
+test('SessionStats restore preserves a promoted (anchored) partial session', () => {
+  const stats = new SessionStats(5_000, true)
+  stats.bindLiveStart() // promoted by a real live-start
+  const restored = SessionStats.restore(stats.snapshot())
+  expect(restored.partial).toBe(true)
+  expect(restored.hasLiveStart).toBe(true)
+})
+
+test('SessionManager: snapshot captures LIVE and ENDING rooms', () => {
+  const { manager } = makeManager()
+  manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  manager.handle(200, ev('live-start', { timestampNormalized: 2_000 }))
+  manager.handle(200, ev('live-end', { timestampNormalized: 3_000 }))
+
+  const snap = manager.snapshot()
+  manager.clearAllTimers()
+
+  expect(snap.version).toBe(1)
+  expect(typeof snap.savedAt).toBe('number')
+  expect(snap.rooms.length).toBe(2)
+  const room100 = snap.rooms.find(([id]) => id === 100)?.[1]
+  const room200 = snap.rooms.find(([id]) => id === 200)?.[1]
+  expect(room100?.pendingEndAt).toBeNull()
+  expect(room100?.session.chats).toBe(1)
+  expect(room200?.pendingEndAt).toBe(3_000)
+})
+
+test('SessionManager: a restored ENDING room emits after the debounce', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_100 }))
+  a.manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  const snap: ManagerSnapshot = JSON.parse(JSON.stringify(a.manager.snapshot()))
+  a.manager.clearAllTimers() // simulate shutdown before the debounce fired
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  await Bun.sleep(60)
+
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.endedAt).toBe(2_000) // the observed live-end, not wall clock
+  expect(b.calls[0]?.summary.chats).toBe(1)
+})
+
+test('SessionManager: a restored ENDING room can still flap-resume', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('live-end', { timestampNormalized: 2_000 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 2_010 })) // resume cancels the re-armed debounce
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(0)
+
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 3_000 }))
+  await Bun.sleep(60)
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.startedAt).toBe(1_000)
+  expect(b.calls[0]?.summary.endedAt).toBe(3_000)
+})
+
+test('SessionManager: a restored LIVE session keeps counting across the restart', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
+  const snap: ManagerSnapshot = JSON.parse(JSON.stringify(a.manager.snapshot()))
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  b.manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 5_000 }))
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 6_000 }))
+  await Bun.sleep(60)
+
+  expect(b.calls.length).toBe(1)
+  expect(b.calls[0]?.summary.chats).toBe(2) // pre-restart + post-restart merged
+  expect(b.calls[0]?.summary.startedAt).toBe(1_000)
+  expect(b.calls[0]?.summary.endedAt).toBe(6_000)
+  expect(b.calls[0]?.summary.partial).toBe(false) // non-partial despite the cleared anchor
+})
+
+test('SessionManager: a restored LIVE session is superseded by the next live-start', async () => {
+  const a = makeManager()
+  a.manager.handle(100, ev('live-start', { timestampNormalized: 1_000 }))
+  a.manager.handle(100, ev('message', { uid: 1, username: 'a', timestampNormalized: 1_500 }))
+  const snap = a.manager.snapshot()
+  a.manager.clearAllTimers()
+
+  const b = makeManager()
+  b.manager.restore(snap)
+  // Stream A ended during downtime; stream B starts now (Bilibili double-fires live-start)
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 9_000 }))
+  b.manager.handle(100, ev('live-start', { timestampNormalized: 9_002 }))
+  b.manager.handle(100, ev('message', { uid: 2, username: 'b', timestampNormalized: 9_100 }))
+  b.manager.handle(100, ev('live-end', { timestampNormalized: 10_000 }))
+  await Bun.sleep(60)
+
+  expect(b.calls.length).toBe(1) // stale session A produced no summary
+  expect(b.calls[0]?.summary.startedAt).toBe(9_000) // B anchored at its own start, first fire wins
+  expect(b.calls[0]?.summary.chats).toBe(1) // A's chat dropped, not merged
+  expect(b.calls[0]?.summary.partial).toBe(false)
 })

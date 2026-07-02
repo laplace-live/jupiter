@@ -98,3 +98,6 @@ export function SUPERCHAT_TIER_EMOJI(price: number): string {
  * collapses those bursts into a single logical stream and a single summary.
  */
 export const STREAM_SUMMARY_DEBOUNCE_MS = 45_000
+
+/** Persist stream-summary state at most this often (the write is skipped when nothing changed). */
+export const STREAM_SUMMARY_FLUSH_MS = 10_000

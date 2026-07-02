@@ -35,77 +35,20 @@ test("hello world", () => {
 });
 ```
 
-## Frontend
+## Code Conventions
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
+### TypeScript
 
-Server:
+- Path alias: `@/*` maps to `./src/*`
+- No `as` type assertions or `biome ignore` workarounds - fix underlying issues
 
-```ts#index.ts
-import index from "./index.html"
+### Comments
 
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
-```
+Comments must be **sparse and terse** — verbosity is the problem; a long comment is worse than no comment. One exception: **JSDoc/TSDoc doc-comments** (`/** … */`) attached to a declaration surface in editor hover and autocomplete — keep them, but keep them tight.
 
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-
-// import .css files directly and it works
-import './index.css';
-
-import { createRoot } from "react-dom/client";
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+- **Keep doc-comments on declarations.** A `/** … */` block on a function, method, class, type, interface, or exported const earns its place by showing in hover tooltips and IntelliSense — don't delete it just because it echoes the name (e.g. keep `/** Read the active global prompt. */` over `getActiveGlobalPrompt()`). Hold it to one line where you can; reach for `@param`/`@returns`/`@example` only to add what the signature can't say (units, ranges, edge cases, ownership). Never pad it into a paragraph.
+- **Cut name-restaters elsewhere.** Delete any `//` inline note or block comment on local variables and implementation details that merely restates a name, signature, type, or an obvious operation.
+- **Condense long block comments to 1–2 lines.** Compress multi-paragraph module headers, design-rationale essays, and per-item writeups down to their single essential point (usually a non-obvious _why_). Drop history, tangents, and cross-references to unrelated modules.
+- **Keep only genuinely non-obvious information, in 1–2 lines** — a subtle edge case, a non-obvious _why_, a workaround, an invariant, units/ranges, or a gotcha. Never a paragraph.
+- **Prefer self-documenting names.** For local/internal logic, skip the comment unless it's genuinely non-obvious or you're asked to add one; a good name beats a comment.
+- **Never remove or alter** functional/tooling directives (`@ts-expect-error`, `@ts-ignore`, `/// <reference>`, `biome-ignore`, `eslint-disable`, `prettier-ignore`, `@vite-ignore`), `TODO`/`FIXME`/`HACK` notes, or license headers. When cleaning comments, change only comments — never code.

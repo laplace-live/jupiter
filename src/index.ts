@@ -12,10 +12,12 @@ import {
   GUARD_TYPE_DICT,
   PRICE_TIER_EMOJI,
   STREAM_SUMMARY_DEBOUNCE_MS,
+  STREAM_SUMMARY_FLUSH_MS,
   SUPERCHAT_TIER_EMOJI,
 } from './consts'
 import { EventStore, formatMessagesContext } from './eventStore'
 import { formatSummary, SessionManager } from './streamSummary'
+import { loadSummarySnapshot, saveSummarySnapshot } from './summaryPersistence'
 import { timeFromNow } from './utils'
 
 // Load configuration
@@ -31,6 +33,7 @@ console.log(`Loaded configuration for ${config.rooms.length} rooms and ${config.
 
 // Ensure bot-data directory exists
 const botDataDir = 'bot-data'
+const summaryStatePath = `${botDataDir}/summary-state.json`
 const { stat, mkdir } = await import('node:fs/promises')
 
 try {
@@ -60,6 +63,9 @@ const summaryManager = new SessionManager({
   onSummary: async (roomId, summary) => {
     const room = roomMap.get(roomId)
     if (!room) return
+    // Persist first: the finalized room is already gone from the snapshot, so
+    // a crash after the send cannot re-emit this summary on the next restore.
+    await flushSummaryState()
     const message = formatSummary(summary, room, md.escape)
     try {
       await tg.sendText(room.telegram_announce_ch, md(message), { disableWebPreview: true })
@@ -69,6 +75,26 @@ const summaryManager = new SessionManager({
     }
   },
 })
+
+// Persist in-progress sessions across restarts. Dirty-check compares rooms only
+// (savedAt always changes); a failed save logs — the old snapshot stays intact.
+let lastPersistedRooms: string | null = null
+let flushChain: Promise<void> = Promise.resolve()
+/** Flushes are chained: concurrent callers (interval, onSummary, shutdown) queue instead of colliding on the tmp file. */
+function flushSummaryState(): Promise<void> {
+  flushChain = flushChain.then(async () => {
+    try {
+      const snap = summaryManager.snapshot()
+      const roomsJson = JSON.stringify(snap.rooms)
+      if (roomsJson === lastPersistedRooms) return
+      await saveSummarySnapshot(summaryStatePath, snap)
+      lastPersistedRooms = roomsJson
+    } catch (err) {
+      console.error('[summary] Failed to persist summary state:', err)
+    }
+  })
+  return flushChain
+}
 
 // Create event bridge clients
 const clients: { name: string; client: LaplaceEventBridgeClient }[] = []
@@ -368,6 +394,20 @@ async function start() {
     const user = await tg.start({ botToken: process.env.TELEGRAM_BOT_TOKEN })
     console.log('Logged in as', user.username)
 
+    // Restore in-progress stream sessions persisted by a previous run
+    const restored = await loadSummarySnapshot(summaryStatePath)
+    if (restored) {
+      try {
+        summaryManager.restore(restored)
+        console.log(`[summary] Restored ${restored.rooms.length} in-progress session(s)`)
+      } catch (err) {
+        console.error('[summary] Failed to restore summary state, starting fresh:', err)
+      }
+    }
+    setInterval(() => {
+      void flushSummaryState()
+    }, STREAM_SUMMARY_FLUSH_MS)
+
     // Connect to all LAPLACE Event Bridges
     console.log('Connecting to event bridges...')
     const promises = clients.map(async ({ name, client }) => {
@@ -395,11 +435,16 @@ async function start() {
   }
 }
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
+// Graceful shutdown (SIGINT from a terminal, SIGTERM from Docker)
+let shuttingDown = false
+async function shutdown() {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log('\nShutting down...')
 
-  // Cancel any pending summary timers (in-memory data is discarded on shutdown)
+  // Persist in-progress sessions, then cancel pending timers — restore()
+  // re-arms them on the next startup
+  await flushSummaryState()
   summaryManager.clearAllTimers()
 
   // Disconnect all event bridges
@@ -410,7 +455,10 @@ process.on('SIGINT', async () => {
 
   await tg.disconnect()
   process.exit(0)
-})
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
 
 // Start the bot
 start()
