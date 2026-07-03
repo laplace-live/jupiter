@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@laplace.live/event-bridge-sdk": "^1.1.0",
-    "@mtcute/bun": "0.29.7"
+    "@mtcute/bun": "0.30.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
