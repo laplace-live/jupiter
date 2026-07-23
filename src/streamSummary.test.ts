@@ -43,18 +43,27 @@ test('SessionStats accumulates a full event sequence', () => {
   stats.record(ev('interaction', { action: 1 }))
   stats.record(ev('interaction', { action: 4 }))
 
-  // gifts: gold counts toward spend, silver excluded
-  stats.record(ev('gift', { uid: 1, username: 'a', coinType: 'gold', priceNormalized: 10 }))
-  stats.record(ev('gift', { uid: 2, username: 'b', coinType: 'gold', priceNormalized: 30 }))
-  stats.record(ev('gift', { uid: 1, username: 'a', coinType: 'silver', priceNormalized: 5 }))
+  // gifts: gold counts toward spend, silver excluded; 礼物排行 groups by giftName, sums giftAmount
+  stats.record(
+    ev('gift', { uid: 1, username: 'a', coinType: 'gold', giftName: '小心心', giftAmount: 2, priceNormalized: 10 })
+  )
+  stats.record(
+    ev('gift', { uid: 2, username: 'b', coinType: 'gold', giftName: '小心心', giftAmount: 6, priceNormalized: 30 })
+  )
+  stats.record(
+    ev('gift', { uid: 1, username: 'a', coinType: 'silver', giftName: '辣条', giftAmount: 100, priceNormalized: 5 })
+  )
 
   // super chats: add to spend (uid 1 +100, uid 3 +50)
   stats.record(ev('superchat', { uid: 3, username: 'c', priceNormalized: 50, message: 'hi' }))
   stats.record(ev('superchat', { uid: 1, username: 'a', priceNormalized: 100, message: 'yo' }))
 
   // guards
-  stats.record(ev('toast', { uid: 2, username: 'b', priceNormalized: 198 }))
-  stats.record(ev('toast', { uid: 3, username: 'c', priceNormalized: 198 }))
+  stats.record(ev('toast', { uid: 2, username: 'b', toastName: '舰长', toastAmount: 1, priceNormalized: 198 }))
+  stats.record(ev('toast', { uid: 3, username: 'c', toastName: '舰长', toastAmount: 1, priceNormalized: 198 }))
+
+  // red envelope: 礼物排行 only (not 总收入/金主榜), full sender spend = priceForUsers + priceForStreamer
+  stats.record(ev('red-envelope-start', { uid: 4, username: 'd', priceForUsers: 80, priceForStreamer: 20 }))
 
   // ignored noise
   stats.record(ev('room-name-update', {}))
@@ -86,6 +95,14 @@ test('SessionStats accumulates a full event sequence', () => {
     { uid: 1, name: 'a', count: 2 },
     { uid: 2, name: 'b', count: 1 },
   ])
+  // 礼物排行 = per-item-name quantity + revenue, sorted by revenue desc.
+  // 小心心 sums giftAmount 2+6=8; silver 辣条 excluded; 红包 = 80+20 face value.
+  expect(s.itemRanking).toEqual([
+    { name: '舰长', count: 2, revenue: 396 },
+    { name: '醒目留言', count: 2, revenue: 150 },
+    { name: '红包', count: 1, revenue: 100 },
+    { name: '小心心', count: 8, revenue: 40 },
+  ])
 })
 
 test('SessionStats with no activity yields empty summary', () => {
@@ -98,6 +115,7 @@ test('SessionStats with no activity yields empty summary', () => {
   expect(s.hourlyRevenue).toBe(0)
   expect(s.topSpenders).toEqual([])
   expect(s.topChatters).toEqual([])
+  expect(s.itemRanking).toEqual([])
 })
 
 import type { RoomConfig } from './types'
@@ -133,6 +151,11 @@ function baseSummary(): import('./streamSummary').StreamSummary {
       { uid: 1, name: 'a', count: 142 },
       { uid: 5, name: 'e', count: 30 },
     ],
+    itemRanking: [
+      { name: '小心心', count: 520, revenue: 1_240.5 },
+      { name: '醒目留言', count: 2, revenue: 980 },
+      { name: '舰长', count: 2, revenue: 597 },
+    ],
   }
 }
 
@@ -158,6 +181,8 @@ test('formatSummary renders all sections', () => {
   expect(out).toContain('⚓ 大航海 2 - ¥597\n💵 时薪 ¥761.5')
   expect(out).toContain('👥 看过 250\n🟢 峰值同接 80\n📊 平均同接 72\n👍 点赞 3,000\n➕ 新增关注 2')
   expect(out).toContain('💬 弹幕 3\n🗣️ 发言 2 人\n📈 人均弹幕 1.5 条')
+  // 礼物排行 sits right after the money block, sorted by revenue, no numbering
+  expect(out).toContain('🎁 礼物排行\n小心心 ×520 - ¥1,240.5\n醒目留言 ×2 - ¥980\n舰长 ×2 - ¥597')
   expect(out).toContain('🏆 金主榜\n1. b ¥680 (24.1%)\n2. c ¥120 (4.3%)')
   expect(out).not.toContain('SC 榜') // SC leaderboard removed
   expect(out).toContain('⚡ 弹幕榜\n1. a 142 条\n2. e 30 条')
@@ -170,10 +195,12 @@ test('formatSummary omits empty sections', () => {
   s.guards = { count: 0, revenue: 0 }
   s.totalRevenue = 0
   s.topSpenders = []
+  s.itemRanking = []
   const out = formatSummary(s, room)
   expect(out).not.toContain('总收入')
   expect(out).not.toContain('时薪')
   expect(out).not.toContain('金主榜')
+  expect(out).not.toContain('礼物排行')
   expect(out).toContain('#直播总结')
   expect(out).toContain('弹幕 3')
 })
@@ -189,6 +216,7 @@ test('formatSummary applies the escaper to viewer-supplied name fields', () => {
   const out = formatSummary(s, room, t => `⟦${t}⟧`)
   expect(out).toContain('1. ⟦b⟧ ¥680') // top spender name escaped
   expect(out).toContain('1. ⟦a⟧ 142 条') // top chatter name escaped
+  expect(out).toContain('⟦小心心⟧ ×520') // 礼物排行 item name escaped
   expect(out).toContain('¥680') // amounts are not escaped
 })
 
@@ -196,6 +224,7 @@ test('formatSummary output stays valid markdown even with hostile text', () => {
   const s = baseSummary()
   s.topSpenders = [{ uid: 2, name: '**b', total: 680 }]
   s.topChatters = [{ uid: 1, name: '[a](x)', count: 5 }]
+  s.itemRanking = [{ name: '**x](y)', count: 1, revenue: 5 }]
   const out = formatSummary(s, room, md.escape)
   expect(() => md(out)).not.toThrow()
 })

@@ -1,4 +1,4 @@
-import type { LaplaceEvent } from '@laplace.live/event-types'
+import type { LaplaceEvent, RedEnvelopeStart } from '@laplace.live/event-types'
 
 import type { RoomConfig } from './types'
 
@@ -30,6 +30,8 @@ export interface StreamSummary {
   topSpenders: Array<{ uid: number; name: string; total: number }>
   /** Most active chatters by danmaku count, descending (≤ TOP_N). */
   topChatters: Array<{ uid: number; name: string; count: number }>
+  /** Paid items grouped by name (礼物排行), ranked by total spend descending (≤ TOP_N). */
+  itemRanking: Array<{ name: string; count: number; revenue: number }>
 }
 
 /** Event types that contribute to a stream summary. */
@@ -42,10 +44,24 @@ export const RECORDABLE_TYPES = new Set<string>([
   'gift',
   'superchat',
   'toast',
+  'red-envelope-start',
 ])
 
-/** Max entries shown in each leaderboard (金主榜 / 弹幕榜). */
+/** Max entries shown in each leaderboard (金主榜 / 弹幕榜 / 礼物排行). */
 const TOP_N = 10
+
+/**
+ * Full yuan amount a viewer spent on a red envelope, for 礼物排行 — not the
+ * streamer's cut (`priceNormalized`), which B站 currently sets to 0. The
+ * `priceForUsers` (80% lottery pool) + `priceForStreamer` (20%) split
+ * reconstructs the sender's total outlay.
+ *
+ * NOTE: verify the event-layer unit against a real `red-envelope-start` before
+ * trusting the absolute figures — this is the single point to adjust.
+ */
+function redEnvelopeFaceValue(event: RedEnvelopeStart): number {
+  return event.priceForUsers + event.priceForStreamer
+}
 
 /** In-memory accumulator for a single live session. Pure: no I/O. */
 export class SessionStats {
@@ -78,6 +94,8 @@ export class SessionStats {
   private guardRevenue = 0
   /** Per-viewer total normalized spend across all paid event types (金主榜 source). */
   private readonly spenders = new Map<number, { name: string; total: number }>()
+  /** Per-item-name quantity and revenue across all paid event types (礼物排行 source). */
+  private readonly items = new Map<string, { count: number; revenue: number }>()
 
   constructor(startedAt: number, partial: boolean) {
     this.startedAt = startedAt
@@ -102,6 +120,17 @@ export class SessionStats {
     const s = this.spenders.get(uid)
     if (s) s.total += amount
     else this.spenders.set(uid, { name, total: amount })
+  }
+
+  /** Attribute a paid event's quantity and revenue to its item bucket (礼物排行). */
+  private addItem(name: string, count: number, revenue: number): void {
+    const it = this.items.get(name)
+    if (it) {
+      it.count += count
+      it.revenue += revenue
+    } else {
+      this.items.set(name, { count, revenue })
+    }
   }
 
   record(event: LaplaceEvent): void {
@@ -132,17 +161,25 @@ export class SessionStats {
           this.giftCount++
           this.giftRevenue += event.priceNormalized
           this.addSpend(event.uid, event.username, event.priceNormalized)
+          this.addItem(event.giftName || '礼物', event.giftAmount || 1, event.priceNormalized)
         }
         break
       case 'superchat':
         this.scCount++
         this.scRevenue += event.priceNormalized
         this.addSpend(event.uid, event.username, event.priceNormalized)
+        this.addItem('醒目留言', 1, event.priceNormalized)
         break
       case 'toast':
         this.guardCount++
         this.guardRevenue += event.priceNormalized
         this.addSpend(event.uid, event.username, event.priceNormalized)
+        this.addItem(event.toastName || '大航海', event.toastAmount || 1, event.priceNormalized)
+        break
+      case 'red-envelope-start':
+        // 红包 feeds 礼物排行 only (full sender spend), not 总收入/金主榜, which
+        // track revenue the streamer actually receives.
+        this.addItem('红包', 1, redEnvelopeFaceValue(event))
         break
       default:
         break
@@ -158,6 +195,12 @@ export class SessionStats {
     const topSpenders = [...this.spenders.entries()]
       .map(([uid, v]) => ({ uid, name: v.name, total: v.total }))
       .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_N)
+
+    const itemRanking = [...this.items.entries()]
+      .map(([name, v]) => ({ name, count: v.count, revenue: v.revenue }))
+      .filter(x => x.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
       .slice(0, TOP_N)
 
     const durationMs = Math.max(0, endedAt - this.startedAt)
@@ -183,6 +226,7 @@ export class SessionStats {
       hourlyRevenue: durationMs > 0 ? totalRevenue / (durationMs / 3_600_000) : 0,
       topSpenders,
       topChatters,
+      itemRanking,
     }
   }
 }
@@ -237,6 +281,11 @@ export function formatSummary(
     const lines = [`💰 总收入 ¥${fmtMoney(s.totalRevenue)}`, ...money]
     if (s.hourlyRevenue > 0) lines.push(`💵 时薪 ¥${fmtMoney(s.hourlyRevenue)}`)
     blocks.push(lines.join('\n'))
+  }
+
+  if (s.itemRanking.length > 0) {
+    const lines = s.itemRanking.map(it => `${escapeText(it.name)} ×${fmtNum(it.count)} - ¥${fmtMoney(it.revenue)}`)
+    blocks.push(['🎁 礼物排行', ...lines].join('\n'))
   }
 
   const audience: string[] = []
