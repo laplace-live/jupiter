@@ -13,11 +13,11 @@
     "release": "changeset git-tag"
   },
   "dependencies": {
-    "@laplace.live/event-bridge-sdk": "^1.1.0",
+    "@laplace.live/event-bridge-sdk": "^1.2.1",
     "@mtcute/bun": "0.29.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.9",
+    "@biomejs/biome": "^2.5.11",
     "@changesets/cli": "^3.0.1",
     "@types/bun": "^1.4.0"
   },
