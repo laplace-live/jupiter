@@ -1,5 +1,11 @@
 # laplace-jupiter
 
+## 1.0.11
+
+### Patch Changes
+
+- d5bc272: bump telegram deps
+
 ## 1.0.10
 
 ### Patch Changes
