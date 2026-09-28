@@ -34,13 +34,13 @@ jobs:
       # would wait for manual approval.
       #
       # Requires a GitHub App installed on this repo with Contents and Pull
-      # requests read & write, its Client ID in the `RELEASE_APP_CLIENT_ID`
-      # variable and its private key in the `RELEASE_APP_PRIVATE_KEY` secret.
+      # requests read & write, its Client ID and private key stored in the
+      # `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY` org secrets.
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
