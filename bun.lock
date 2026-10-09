@@ -6,7 +6,7 @@
       "name": "laplace-jupiter",
       "dependencies": {
         "@laplace.live/event-bridge-sdk": "^1.2.1",
-        "@mtcute/bun": "0.32.3",
+        "@mtcute/bun": "0.32.4",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.14",
@@ -93,15 +93,15 @@
 
     "@manypkg/tools": ["@manypkg/tools@2.1.2", "", { "dependencies": { "jju": "^1.4.0", "tinyglobby": "^0.2.13", "yaml": "^2.9.0" } }, "sha512-6QEf6yqFbETdwGITKq57aYoPfX/3K8XFNwsAlx0C1M7o8cb79sv1M3w+tWuWvIcSbNqrLF7OD7YpZMVVz335hQ=="],
 
-    "@mtcute/bun": ["@mtcute/bun@0.32.3", "", { "dependencies": { "@fuman/bun": "0.0.21", "@fuman/io": "0.0.21", "@fuman/net": "0.0.21", "@fuman/utils": "0.0.21", "@mtcute/core": "^0.32.3", "@mtcute/html-parser": "^0.32.3", "@mtcute/markdown-parser": "^0.32.3", "@mtcute/wasm": "^0.32.0" } }, "sha512-PtFfkpPspqLGpTJX6YGLS09otTzwPH9/OaEOe2aqX7KMljYkNe7/QngggtybPdK5LQsyQ/i6H4G9CgVty4S4Qw=="],
+    "@mtcute/bun": ["@mtcute/bun@0.32.4", "", { "dependencies": { "@fuman/bun": "0.0.21", "@fuman/io": "0.0.21", "@fuman/net": "0.0.21", "@fuman/utils": "0.0.21", "@mtcute/core": "^0.32.4", "@mtcute/html-parser": "^0.32.4", "@mtcute/markdown-parser": "^0.32.4", "@mtcute/wasm": "^0.32.0" } }, "sha512-tNp4MbUZX7dXVqkRb0vYK5xD+yQKgyHxsjDEaEWRaHEV7a+Ad1TWqQbScOF4uu5vlX34MZtOQYby//34aQ0Hpw=="],
 
-    "@mtcute/core": ["@mtcute/core@0.32.3", "", { "dependencies": { "@fuman/io": "0.0.21", "@fuman/net": "0.0.21", "@fuman/utils": "0.0.21", "@mtcute/file-id": "^0.32.0", "@mtcute/tl-runtime": "^0.32.0", "@types/events": "3.0.0", "long": "^5.3.2" } }, "sha512-STG2lrveYy3wuMzolMDGgpShfhgO4VpgEOk/J81KgsEFTA4SQEXRHqUJP8kv0JTjCXRPesDPb51EOUvC0/rqcw=="],
+    "@mtcute/core": ["@mtcute/core@0.32.4", "", { "dependencies": { "@fuman/io": "0.0.21", "@fuman/net": "0.0.21", "@fuman/utils": "0.0.21", "@mtcute/file-id": "^0.32.0", "@mtcute/tl-runtime": "^0.32.0", "@types/events": "3.0.0", "long": "^5.3.2" } }, "sha512-Qe3lcIVSbpUNPfc6uS2FS9vzpR2RuzbPQyT3v8LOZz1cWpVn9IsY5SdewF5vKPpF1tmId/i7rv2F0eT510hTaw=="],
 
     "@mtcute/file-id": ["@mtcute/file-id@0.32.0", "", { "dependencies": { "@fuman/utils": "0.0.21", "@mtcute/tl-runtime": "^0.32.0", "long": "^5.3.2" } }, "sha512-afg/w6KKEn85xenuHVF4N8ysWy3vYZ7VF2sseUM3OXzLdZgVifRnNTdVUmU2kilpRYsR/B0Qvyu7Sif2N7H47A=="],
 
-    "@mtcute/html-parser": ["@mtcute/html-parser@0.32.3", "", { "dependencies": { "@mtcute/core": "^0.32.3", "htmlparser2": "^10.0.0", "long": "^5.3.2" } }, "sha512-/NLGmUkCPtZN35LzJ76/Wa0jqBHDmG+s/5ACr0s9ATXepJULsmrhdBlCCvo+mEM6AG/qN1JocjwEPAmS0fbQqA=="],
+    "@mtcute/html-parser": ["@mtcute/html-parser@0.32.4", "", { "dependencies": { "@mtcute/core": "^0.32.4", "htmlparser2": "^10.0.0", "long": "^5.3.2" } }, "sha512-AaYF2686DObHVLZ8Ripw4f/0x0N02d21XG+uWrqajH654nHmXuQxdfSdea+GHog5nr57TSl7+Mkr/JPggwlmFw=="],
 
-    "@mtcute/markdown-parser": ["@mtcute/markdown-parser@0.32.3", "", { "dependencies": { "@mtcute/core": "^0.32.3", "long": "^5.3.2" } }, "sha512-08NNC5rwFu8PkEvM03xsvig1eW3PyBuyoAR8COtgnd3vZcRT1uqJwY9EMzMjBiF9FqtVEYnjoCIcQxMdr+IAQA=="],
+    "@mtcute/markdown-parser": ["@mtcute/markdown-parser@0.32.4", "", { "dependencies": { "@mtcute/core": "^0.32.4", "long": "^5.3.2" } }, "sha512-Ir36j3KvlBi8gC/+NPY4EdReOtJ3OBMp++LiD++8XfguljXvdwNzYpHh/NHqMgJX8NkHRDMW0bY3AB80cazUwg=="],
 
     "@mtcute/tl-runtime": ["@mtcute/tl-runtime@0.32.0", "", { "dependencies": { "@fuman/utils": "0.0.21", "long": "^5.3.2" } }, "sha512-9TdepMheddBismZDYVng9a0m+D4TqUPWcFc83JiArsXv+pmQiNWzXcoyoTUODUA35i6VOIdO5CuNd8hnKoZHpg=="],
 
