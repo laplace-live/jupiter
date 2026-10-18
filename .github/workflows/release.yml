@@ -50,6 +50,7 @@ jobs:
         with:
           version-script: bun run version
           publish-script: bun run release
+          commit-message: "Version Packages [skip ci]"
           # We don't publish to npm; `bun run release` runs `changeset git-tag`,
           # which tags the release locally. The action then creates the tag and
           # a GitHub Release through the API with `github-token`, and the Docker
